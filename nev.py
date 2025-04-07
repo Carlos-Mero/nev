@@ -5,7 +5,7 @@ import logging
 import openai
 from tqdm import tqdm
 
-with open('.apiconfig.json', 'r') as file:
+with open('.apiconfig.json', 'r', encoding='utf-8') as file:
     apiconfig = json.load(file)
 
 client = openai.OpenAI(
@@ -79,7 +79,7 @@ class VanillaJudger(AgentBase):
 def run_naive(args):
     solver = Solver(args.proof_model, args.temperature, args.seed)
     judger = VanillaJudger(args.eval_model, args.temperature, args.seed)
-    with open(args.problems, 'r') as problems_file:
+    with open(args.problems, 'r', encoding='utf-8') as problems_file:
         problems = json.load(problems_file)
     logs = []
     for p in tqdm(problems):
@@ -90,8 +90,8 @@ def run_naive(args):
         logs.append({'problem': p, 'proof': proof, 'evaluation': judge_process, 'judgement': result})
 
     if args.save_path is not None:
-        with open(args.save_path, "w") as log_path:
-            json.dump(logs, log_path, indent=4)
+        with open(args.save_path, "w", encoding='utf-8') as log_path:
+            json.dump(logs, log_path, indent=4, ensure_ascii=False)
             logging.info(f"Saved logs to path: {args.save_path}!")
 
 
