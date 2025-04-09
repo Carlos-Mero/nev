@@ -40,28 +40,36 @@ class AgentBase:
         self.model = model
         self.temperature = temperature
         self.seed = seed
-    def format_prompt(self, input: str):
+    def format_prompt(self, **kwargs):
         """
         This method should be overrided by subclasses for specific useage
         """
         raise NotImplementedError("format_prompt should be implemented by subclasses of agent")
     def __call__(self, *args, **kwargs):
         prompt = self.format_prompt(*args, **kwargs)
-        response = client.chat.completions.create(
+        stream = client.chat.completions.create(
             model = self.model,
             temperature = self.temperature,
             seed = self.seed,
-            timeout = 300,
-            messages = prompt
+            timeout = 3000,
+            messages = prompt,
+            stream=True
         )
-        cnt = response.choices[0].message.content
-        logging.debug(f"Full response from agent: {cnt}")
+        # cnt = response.choices[0].message.content
+        cnt = ""
+        logging.debug("Printing response from agent")
+        for chunk in stream:
+            chunk_content = chunk.choices[0].delta.content
+            if chunk_content is not None:
+                if 'debug' in kwargs and kwargs['debug']:
+                    print(chunk_content, end="")
+                cnt += chunk_content
         return cnt
 
 class Solver(AgentBase):
     def __init__(self, model: str, temperature: float, seed: int):
         super().__init__(model, temperature, seed)
-    def format_prompt(self, problem: str):
+    def format_prompt(self, problem: str, **kwargs):
         prompt = [{'role': 'user', 'content': 'Please provide a complete and rigorous proof for this problem.'},
                   {'role': 'user', 'content': problem}]
         logging.debug(f"Running Solver with prompt: {prompt}")
@@ -70,7 +78,7 @@ class Solver(AgentBase):
 class VanillaJudger(AgentBase):
     def __init__(self, model: str, temperature: float, seed: int):
         super().__init__(model, temperature, seed)
-    def format_prompt(self, problem: str, proof: str):
+    def format_prompt(self, problem: str, proof: str, **kwargs):
         prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as \\boxed{true} or \\boxed{false}.'},
                   {'role': 'user', 'content': f'### Problem\n\n{problem}\n\n### Candidate Proof\n\n{proof}'}]
         logging.debug(f"Running Judger with prompt: {prompt}")
@@ -84,8 +92,8 @@ def run_naive(args):
     logs = []
     for p in tqdm(problems):
         logging.info(f"Working with problem: {p}")
-        proof = solver(p)
-        judge_process = judger(p, proof)
+        proof = solver(p, debug=args.debug)
+        judge_process = judger(p, proof, debug=args.debug)
         result = find_boxed(judge_process)
         logs.append({'problem': p, 'proof': proof, 'evaluation': judge_process, 'judgement': result})
 
