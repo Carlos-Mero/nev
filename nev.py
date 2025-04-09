@@ -72,7 +72,6 @@ class Solver(AgentBase):
     def format_prompt(self, problem: str, **kwargs):
         prompt = [{'role': 'user', 'content': 'Please provide a complete and rigorous proof for this problem.'},
                   {'role': 'user', 'content': problem}]
-        logging.debug(f"Running Solver with prompt: {prompt}")
         return prompt
 
 class VanillaJudger(AgentBase):
@@ -81,7 +80,6 @@ class VanillaJudger(AgentBase):
     def format_prompt(self, problem: str, proof: str, **kwargs):
         prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as \\boxed{true} or \\boxed{false}.'},
                   {'role': 'user', 'content': f'### Problem\n\n{problem}\n\n### Candidate Proof\n\n{proof}'}]
-        logging.debug(f"Running Judger with prompt: {prompt}")
         return prompt
 
 def run_naive(args):
