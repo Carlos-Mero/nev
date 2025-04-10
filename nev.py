@@ -37,10 +37,13 @@ def find_boxed(pred_str: str):
     return a
 
 class AgentBase:
-    def __init__(self, model: str, temperature: float, seed: int):
+    temperature = 0.6
+    seed = 1121
+    max_retry = 7
+
+    def __init__(self, model: str):
         self.model = model
-        self.temperature = temperature
-        self.seed = seed
+
     def format_prompt(self, **kwargs):
         """
         This method should be overrided by subclasses for specific useage
@@ -48,36 +51,43 @@ class AgentBase:
         raise NotImplementedError("format_prompt should be implemented by subclasses of agent")
     def __call__(self, *args, **kwargs):
         prompt = self.format_prompt(*args, **kwargs)
-        stream = client.chat.completions.create(
-            model = self.model,
-            temperature = self.temperature,
-            seed = self.seed,
-            timeout = 3000,
-            messages = prompt,
-            stream=True
-        )
-        # cnt = response.choices[0].message.content
-        cnt = ""
-        logging.debug("Printing response from agent")
-        for chunk in stream:
-            chunk_content = chunk.choices[0].delta.content
-            if chunk_content is not None:
-                if 'debug' in kwargs and kwargs['debug']:
-                    print(chunk_content, end="")
-                cnt += chunk_content
-        return cnt
+        for attempt in range(self.max_retries):
+            try:
+                stream = client.chat.completions.create(
+                    model=self.model,
+                    temperature=self.temperature,
+                    seed=self.seed,
+                    timeout=3000,
+                    messages=prompt,
+                    stream=True
+                )
+                response_content = ""
+                for chunk in stream:
+                    chunk_content = chunk.choices[0].delta.content
+                    if chunk_content is not None:
+                        if 'debug' in kwargs and kwargs['debug']:
+                            print(chunk_content, end="", flush=True)
+                        response_content += chunk_content
+                
+                if response_content.strip():
+                    return response_content
+                else:
+                    logging.warning(f"Attempt {attempt+1}: Response was empty. Retrying...")
+                    
+            except Exception as e:
+                logging.warning(f"Attempt {attempt+1} failed with exception: {e}")
 
 class Solver(AgentBase):
-    def __init__(self, model: str, temperature: float, seed: int):
-        super().__init__(model, temperature, seed)
+    def __init__(self, model: str):
+        super().__init__(model)
     def format_prompt(self, problem: str, **kwargs):
         prompt = [{'role': 'user', 'content': 'Please provide a complete and rigorous proof for this problem.'},
                   {'role': 'user', 'content': problem}]
         return prompt
 
 class VanillaJudger(AgentBase):
-    def __init__(self, model: str, temperature: float, seed: int):
-        super().__init__(model, temperature, seed)
+    def __init__(self, model: str):
+        super().__init__(model)
     def format_prompt(self, problem: str, proof: str, **kwargs):
         prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as \\boxed{true} or \\boxed{false}.'},
                   {'role': 'user', 'content': f'### Problem\n\n{problem}\n\n### Candidate Proof\n\n{proof}'}]
@@ -110,8 +120,8 @@ def run_naive(args):
     """
     Running naive process pipeline on given problems
     """
-    solver = Solver(args.proof_model, args.temperature, args.seed)
-    judger = VanillaJudger(args.eval_model, args.temperature, args.seed)
+    solver = Solver(args.proof_model)
+    judger = VanillaJudger(args.eval_model)
     with open(args.problems, 'r', encoding='utf-8') as problems_file:
         problems = json.load(problems_file)
     logging.info(f"Running naive process pipeline with {len(problems)} problems")
@@ -148,6 +158,7 @@ def main():
     parser.add_argument('--debug', default=False, action='store_true', help="Enable debug mode for more information output")
     parser.add_argument('--save_path', type=str, default=None, help="The path to save proof and judge results in the process")
     parser.add_argument('-w', '--workers', type=int, default=1, help="The threads used in this program.")
+    parser.add_argument('--max_retries', type=int, default=7, help="The maximum retry times when calling the API")
 
     args = parser.parse_args()
 
@@ -158,6 +169,11 @@ def main():
             args.workers = 1
     else:
         logging.basicConfig(level=logging.INFO)
+
+    # setting global variables for all agents
+    AgentBase.temperature = args.temperature
+    AgentBase.seed = args.seed
+    AgentBase.max_retries = args.max_retries
 
     if args.naive:
         run_naive(args)
