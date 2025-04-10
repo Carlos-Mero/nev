@@ -3,6 +3,7 @@ import json
 import logging
 
 import openai
+import concurrent.futures
 from tqdm import tqdm
 
 with open('.apiconfig.json', 'r', encoding='utf-8') as file:
@@ -82,18 +83,52 @@ class VanillaJudger(AgentBase):
                   {'role': 'user', 'content': f'### Problem\n\n{problem}\n\n### Candidate Proof\n\n{proof}'}]
         return prompt
 
+def naive_process_pipeline(
+    problem: str,
+    solver: Solver,
+    judger: VanillaJudger,
+    debug: bool = False
+) -> dict[str, any]:
+    """
+    Helper function that:
+    1. Calls solver to get the proof.
+    2. Calls judger to evaluate the proof.
+    3. Extracts the 'boxed' result from judger's output.
+    4. Returns a dictionary with all relevant logs.
+    """
+    proof = solver(problem, debug=debug)
+    judge_process = judger(problem, proof, debug=debug)
+    result = find_boxed(judge_process)
+    return {
+        'problem': problem,
+        'proof': proof,
+        'evaluation': judge_process,
+        'judgement': result
+    }
+
 def run_naive(args):
+    """
+    Running naive process pipeline on given problems
+    """
     solver = Solver(args.proof_model, args.temperature, args.seed)
     judger = VanillaJudger(args.eval_model, args.temperature, args.seed)
     with open(args.problems, 'r', encoding='utf-8') as problems_file:
         problems = json.load(problems_file)
+    logging.info(f"Running naive process pipeline with {len(problems)} problems")
     logs = []
-    for p in tqdm(problems):
-        logging.info(f"Working with problem: {p}")
-        proof = solver(p, debug=args.debug)
-        judge_process = judger(p, proof, debug=args.debug)
-        result = find_boxed(judge_process)
-        logs.append({'problem': p, 'proof': proof, 'evaluation': judge_process, 'judgement': result})
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
+        # Submit each problem to the thread pool
+        future_to_problem = {
+            executor.submit(naive_process_pipeline, p, solver, judger, args.debug): p
+            for p in problems
+        }
+
+        # Collect results as they complete
+        for future in tqdm(concurrent.futures.as_completed(future_to_problem), 
+                           total=len(future_to_problem), 
+                           desc="Processing problems"):
+            result_dict = future.result()
+            logs.append(result_dict)
 
     if args.save_path is not None:
         with open(args.save_path, "w", encoding='utf-8') as log_path:
@@ -112,11 +147,15 @@ def main():
     parser.add_argument('-p', '--problems', type=str, default='', help="The path to the problems to be solved. It should be a file in json format, which contains a list of problems in natural language")
     parser.add_argument('--debug', default=False, action='store_true', help="Enable debug mode for more information output")
     parser.add_argument('--save_path', type=str, default=None, help="The path to save proof and judge results in the process")
+    parser.add_argument('-w', '--workers', type=int, default=1, help="The threads used in this program.")
 
     args = parser.parse_args()
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
+        if args.workers > 1:
+            logging.debug("Enabling debug mode, resetting multi thread workers to 1.")
+            args.workers = 1
     else:
         logging.basicConfig(level=logging.INFO)
 

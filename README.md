@@ -25,7 +25,7 @@ You should replace the contents with your own API key and base url. After that, 
 And then you can run this script to run naive proving and criticizing process for these problems.
 
 ```bash
-python nev.py -p problems.json --naive --save_path results.json
+python nev.py -p problems.json --naive --save_path results.json -w 4
 ```
 
 By default we will use DeepSeek-R1 as the backend for reasoning related tasks, and DeepSeek-V3 for other chores.
