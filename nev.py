@@ -145,6 +145,20 @@ def run_naive(args):
             json.dump(logs, log_path, indent=4, ensure_ascii=False)
             logging.info(f"Saved logs to path: {args.save_path}!")
 
+def view_samples(args):
+    with open(args.view, "r", encoding="utf-8") as file:
+        samples = json.load(file)
+
+    samples = samples[args.start : args.start + args.n_samples]
+
+    for i, s in enumerate(samples):
+        print("#" * 50 + "\n")
+        print(f"viewing sample {args.start + i}\n")
+        print(f"PROBLEM:\n\n{s['problem']}\n")
+        print(f"PROOF:\n{s['proof']}\n")
+        print(f"EVALUATION:\n{s['evaluation']}\n")
+        print(f"JUDGEMENT:\n\n{s['judgement']}\n")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Natural language evaluation for proof problems in math")
@@ -153,14 +167,22 @@ def main():
     parser.add_argument('--reform_model', type=str, default='deepseek-v3', help="The model used for reformat the contents in the workflow")
     parser.add_argument('--naive', default=False, action='store_true', help="Enable the naive direct evaluation method")
     parser.add_argument('-t', '--temperature', type=float, default=0.6, help="The argument sets the global temperature of all agents")
-    parser.add_argument('-s', '--seed', type=int, default=1121, help="The global seed for the whole program")
+    parser.add_argument('--seed', type=int, default=1121, help="The global seed for the whole program")
     parser.add_argument('-p', '--problems', type=str, default='', help="The path to the problems to be solved. It should be a file in json format, which contains a list of problems in natural language")
     parser.add_argument('--debug', default=False, action='store_true', help="Enable debug mode for more information output")
     parser.add_argument('--save_path', type=str, default=None, help="The path to save proof and judge results in the process")
     parser.add_argument('-w', '--workers', type=int, default=1, help="The threads used in this program.")
     parser.add_argument('--max_retries', type=int, default=7, help="The maximum retry times when calling the API")
 
+    parser.add_argument('-v', '--view', type=str, default="", help="pass the path to enable viewing mode for the log elements")
+    parser.add_argument('-s', '--start', type=int, default=0, help="the start point of viewing samples")
+    parser.add_argument('-n', '--n_samples', type=int, default=1, help="The length of samples to be viewed")
+
     args = parser.parse_args()
+
+    if args.view:
+        view_samples(args)
+        return
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
