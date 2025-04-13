@@ -154,10 +154,8 @@ def view_samples(args):
     for i, s in enumerate(samples):
         print("#" * 50 + "\n")
         print(f"viewing sample {args.start + i}\n")
-        print(f"PROBLEM:\n\n{s['problem']}\n")
-        print(f"PROOF:\n{s['proof']}\n")
-        print(f"EVALUATION:\n{s['evaluation']}\n")
-        print(f"JUDGEMENT:\n\n{s['judgement']}\n")
+        for key, value in s.items():
+            print(f"\033[92m{key.upper()}\033[0m: {value}\n")
 
 
 def main():
