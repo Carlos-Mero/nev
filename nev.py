@@ -39,7 +39,7 @@ def find_boxed(pred_str: str):
 class AgentBase:
     temperature = 0.6
     seed = 1121
-    max_retry = 7
+    max_retries = 7
 
     def __init__(self, model: str):
         self.model = model
@@ -145,6 +145,54 @@ def run_naive(args):
             json.dump(logs, log_path, indent=4, ensure_ascii=False)
             logging.info(f"Saved logs to path: {args.save_path}!")
 
+def naive_reeval_pipeline(
+    problem: str,
+    proof: str,
+    manual_judgement: bool,
+    judger: VanillaJudger,
+    debug: bool = False
+    ):
+    judge_process = judger(problem, proof, debug=debug)
+    result = True if find_boxed(judge_process) == 'true' else False
+    return {
+        'problem': problem,
+        'proof': proof,
+        'evaluation': judge_process,
+        'judgement': result,
+        'manual_judgement': manual_judgement
+    }
+
+def reevaluate(args):
+    with open(args.reevaluate, "r", encoding="utf-8") as file:
+        samples = json.load(file)
+    judger = VanillaJudger(args.eval_model)
+    logging.info(f"Reevaluating dataset {args.reevaluate} with model {args.eval_model}")
+    logs = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
+        # Submit each problem to the thread pool
+        future_to_problem = {
+            executor.submit(naive_reeval_pipeline, s['problem'], s['proof'], s['manual_judgement'], judger, args.debug): s
+            for s in samples
+        }
+
+        # Collect results as they complete
+        for future in tqdm(concurrent.futures.as_completed(future_to_problem), 
+                           total=len(future_to_problem), 
+                           desc="Processing problems"):
+            result_dict = future.result()
+            logs.append(result_dict)
+
+    logging.info("Completed reevaluation")
+    logging.info(f"Total Problem Count: {len(samples)}")
+    pass_count = len([s for s in logs if s['judgement'] == s['manual_judgement']])
+    logging.info(f"Total Pass Count: {pass_count}")
+    logging.info(f"Total Failure Count: {len(samples) - pass_count}")
+
+    if args.save_path is not None:
+        with open(args.save_path, "w", encoding='utf-8') as log_path:
+            json.dump(logs, log_path, indent=4, ensure_ascii=False)
+            logging.info(f"Saved logs to path: {args.save_path}!")
+
 def view_samples(args):
     with open(args.view, "r", encoding="utf-8") as file:
         samples = json.load(file)
@@ -172,15 +220,15 @@ def main():
     parser.add_argument('-w', '--workers', type=int, default=1, help="The threads used in this program.")
     parser.add_argument('--max_retries', type=int, default=7, help="The maximum retry times when calling the API")
 
-    parser.add_argument('-v', '--view', type=str, default="", help="pass the path to enable viewing mode for the log elements")
+    # for evaluation with different models
+    parser.add_argument('-ee', '--reevaluate', type=str, default=None, help="The path to the annotated dataset to be reevaluated with eval_model. These results are then compared with annotated ground truth judgement.")
+
+    # for viewer utilities
+    parser.add_argument('-v', '--view', type=str, default=None, help="pass the path to enable viewing mode for the log elements")
     parser.add_argument('-s', '--start', type=int, default=0, help="the start point of viewing samples")
     parser.add_argument('-n', '--n_samples', type=int, default=1, help="The length of samples to be viewed")
 
     args = parser.parse_args()
-
-    if args.view:
-        view_samples(args)
-        return
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -189,6 +237,14 @@ def main():
             args.workers = 1
     else:
         logging.basicConfig(level=logging.INFO)
+
+    if args.view:
+        view_samples(args)
+        return
+
+    if args.reevaluate:
+        reevaluate(args)
+        return
 
     # setting global variables for all agents
     AgentBase.temperature = args.temperature
