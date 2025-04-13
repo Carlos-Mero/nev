@@ -113,7 +113,7 @@ def naive_process_pipeline(
         'problem': problem,
         'proof': proof,
         'evaluation': judge_process,
-        'judgement': result
+        'judgement': True if result == "true" else False
     }
 
 def run_naive(args):
