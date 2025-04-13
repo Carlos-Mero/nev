@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import re
 
 import openai
 import concurrent.futures
@@ -14,27 +15,11 @@ client = openai.OpenAI(
     base_url = apiconfig['OPENAI_BASE_URL']
 )
 
-def find_boxed(pred_str: str):
-    ans = pred_str.split("boxed")[-1]
-    if not ans:
-        return ""
-    if ans[0] == "{":
-        stack = 1
-        a = ""
-        for c in ans[1:]:
-            if c == "{":
-                stack += 1
-                a += c
-            elif c == "}":
-                stack -= 1
-                if stack == 0:
-                    break
-                a += c
-            else:
-                a += c
-    else:
-        a = ans.split("$")[0].strip()
-    return a
+def extract_judgement(text):
+    matches = re.findall(r'\*\*(true|false)\*\*', text)
+    if matches:
+        return matches[-1].lower()  # 返回最后一个匹配的值，统一为小写
+    return "False"
 
 class AgentBase:
     temperature = 0.6
@@ -89,7 +74,7 @@ class VanillaJudger(AgentBase):
     def __init__(self, model: str):
         super().__init__(model)
     def format_prompt(self, problem: str, proof: str, **kwargs):
-        prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as \\boxed{true} or \\boxed{false}.'},
+        prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as **true** or **false** at the end of your response.'},
                   {'role': 'user', 'content': f'### Problem\n\n{problem}\n\n### Candidate Proof\n\n{proof}'}]
         return prompt
 
@@ -108,7 +93,7 @@ def naive_process_pipeline(
     """
     proof = solver(problem, debug=debug)
     judge_process = judger(problem, proof, debug=debug)
-    result = find_boxed(judge_process)
+    result = extract_judgement(judge_process)
     return {
         'problem': problem,
         'proof': proof,
@@ -153,7 +138,7 @@ def naive_reeval_pipeline(
     debug: bool = False
     ):
     judge_process = judger(problem, proof, debug=debug)
-    result = True if find_boxed(judge_process) == 'true' else False
+    result = True if extract_judgement(judge_process) == 'true' else False
     return {
         'problem': problem,
         'proof': proof,
