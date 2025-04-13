@@ -74,7 +74,7 @@ class VanillaJudger(AgentBase):
     def __init__(self, model: str):
         super().__init__(model)
     def format_prompt(self, problem: str, proof: str, **kwargs):
-        prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as **true** or **false** at the end of your response.'},
+        prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as a single emphasized **true** or **false** at the end of your response.'},
                   {'role': 'user', 'content': f'### Problem\n\n{problem}\n\n### Candidate Proof\n\n{proof}'}]
         return prompt
 
