@@ -16,9 +16,9 @@ client = openai.OpenAI(
 )
 
 def extract_judgement(text):
-    matches = re.findall(r'\*\*(true|false)\*\*', text)
+    matches = re.findall(r'\*\*(true|false)\*\*', text, re.IGNORECASE)
     if matches:
-        return matches[-1].lower()  # 返回最后一个匹配的值，统一为小写
+        return matches[-1].lower()
     return "False"
 
 class AgentBase:
