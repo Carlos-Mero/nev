@@ -21,6 +21,10 @@ def extract_judgement(text):
         return matches[-1].lower()
     return "False"
 
+def remove_think_tags(text):
+    cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    return cleaned_text
+
 class AgentBase:
     temperature = 0.6
     seed = 1121
@@ -74,7 +78,7 @@ class VanillaJudger(AgentBase):
     def __init__(self, model: str):
         super().__init__(model)
     def format_prompt(self, problem: str, proof: str, **kwargs):
-        prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as a single emphasized **true** or **false** at the end of your response.'},
+        prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as an emphasized **true** or **false** at the end of your response.'},
                   {'role': 'user', 'content': f'### Problem\n\n{problem}\n\n### Candidate Proof\n\n{proof}'}]
         return prompt
 
@@ -91,7 +95,7 @@ def naive_process_pipeline(
     3. Extracts the 'boxed' result from judger's output.
     4. Returns a dictionary with all relevant logs.
     """
-    proof = solver(problem, debug=debug)
+    proof = remove_think_tags(solver(problem, debug=debug))
     judge_process = judger(problem, proof, debug=debug)
     result = extract_judgement(judge_process)
     return {
@@ -124,6 +128,11 @@ def run_naive(args):
                            desc="Processing problems"):
             result_dict = future.result()
             logs.append(result_dict)
+
+    logging.info(f"Problem Count: {len(problems)}")
+    solved_logs = [ll for ll in logs if ll['judgement']]
+    logging.info(f"Pass Count under {args.eval_model}: {len(solved_logs)}")
+    logging.info(f"Failure Count under {args.eval_model}: {len(problems) - len(solved_logs)}")
 
     if args.save_path is not None:
         with open(args.save_path, "w", encoding='utf-8') as log_path:
