@@ -191,6 +191,9 @@ def view_samples(args):
     with open(args.view, "r", encoding="utf-8") as file:
         samples = json.load(file)
 
+    if args.false_only:
+        samples = [s for s in samples if not s['judgement']]
+
     samples = samples[args.start : args.start + args.n_samples]
 
     for i, s in enumerate(samples):
@@ -221,6 +224,7 @@ def main():
     parser.add_argument('-v', '--view', type=str, default=None, help="pass the path to enable viewing mode for the log elements")
     parser.add_argument('-s', '--start', type=int, default=0, help="the start point of viewing samples")
     parser.add_argument('-n', '--n_samples', type=int, default=1, help="The length of samples to be viewed")
+    parser.add_argument('-fo', '--false_only', action='store_true', default=False, help="view false cases only in the dataset")
 
     args = parser.parse_args()
 
