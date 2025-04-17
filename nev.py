@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import re
+from typing import Union
 
 import openai
 import concurrent.futures
@@ -70,7 +71,7 @@ class Solver(AgentBase):
     def __init__(self, model: str):
         super().__init__(model)
     def format_prompt(self, problem: str, **kwargs):
-        prompt = [{'role': 'user', 'content': 'Please provide a complete and rigorous proof for this problem.'},
+        prompt = [{'role': 'user', 'content': 'Please provide a complete and rigorous proof of this problem.'},
                   {'role': 'user', 'content': problem}]
         return prompt
 
@@ -78,12 +79,116 @@ class VanillaJudger(AgentBase):
     def __init__(self, model: str):
         super().__init__(model)
     def format_prompt(self, problem: str, proof: str, **kwargs):
-        prompt = [{'role': 'user', 'content': 'Here is a proof problem in math and a candidate of proof to it. You need to carefully examine and verify this proof and determine whether it is correct and rigorous. State your judgement as an emphasized **true** or **false** at the end of your response.'},
-                  {'role': 'user', 'content': f'### Problem\n\n{problem}\n\n### Candidate Proof\n\n{proof}'}]
+        prompt = [{'role': 'user', 'content':
+                   'Here is a proof problem in math and a candidate proof of it. You need to carefully examine and verify this proof and determine whether it is:\n'
+                   '\n'
+                   '1. Complete\n'
+                   '2. Correct\n'
+                   '3. Rigorous\n'
+                   'You need to explain your rationales and state your judgement as an emphasized **true** or **false** at the end of your response.\n'
+                   '\n'
+                   '### Problem\n'
+                   '\n'
+                   f'{problem}\n'
+                   '\n'
+                   '### Candidate Proof\n'
+                   '\n'
+                   f'{proof}'}]
         return prompt
 
-def naive_process_pipeline(
+class DiscussionReviewer(AgentBase):
+    def __init__(self, model: str):
+        super().__init__(model)
+    def format_prompt(self, problem: str, proof: str, **kwargs):
+        # change the seed each time
+        self.seed += 1
+        prompt = [
+            {'role': 'user', 'content':
+             'You are a reviewer for this math problem. You are provided a candidate proof of this problem, and you need to analyze and point out one part of this proof that might be incomplete or contain some flaws. We will use your advice for further judgement of this proof.\n'
+             '\n'
+             '### Problem\n'
+             '\n'
+             f'{problem}\n'
+             '\n'
+             '### Candidate Proof\n'
+             '\n'
+             f'{proof}\n'
+             'You need to explain your rationales and state your judgement as an emphasized **true** or **false** at the end of your response.\n'
+             }]
+        return prompt
+
+class DiscussionJudger(AgentBase):
+    def __init__(self, model: str):
+        super().__init__(model)
+    def format_prompt(self, problem: str, proof: str, advices: list[str], **kwargs):
+        advices = ""
+        for i, c in enumerate(advices):
+            advices += f"#### Review {i+1}\n\n{c}\n"
+        prompt = [
+            {'role': 'user', 'content': 
+             "You are a judger that needs to carefully review and determine whether the candidate proof of this math problem is **complete**, **correct** and **rigorous**.\n"
+             "\n"
+             "### Problem\n"
+             "\n"
+             f"{problem}\n"
+             "\n"
+             "### Candidate Proof\n"
+             "\n"
+             f"{proof}\n"
+             "\n"
+             "Here are some advices provided by other reviewers about this proof. You can carefully analyze and make judgements based on them.\n"
+             "\n"
+             "### Reviews\n"
+             "\n"
+             f"{advices}\n"
+             "State your judgement as an emphasized **true** or **false** at the end of your response."
+             }
+        ]
+        return prompt
+
+def naive_eval_pipeline(
     problem: str,
+    proof: str,
+    judger: VanillaJudger,
+    manual_judgement: bool = None,
+    debug: bool = False
+    ):
+    judge_process = judger(problem, proof, debug=debug)
+    result = True if extract_judgement(judge_process) == 'true' else False
+    return {
+        'problem': problem,
+        'proof': proof,
+        'evaluation': judge_process,
+        'judgement': result,
+        'manual_judgement': manual_judgement
+    }
+
+def discussion_eval_pipeline(
+    problem: str,
+    proof: str,
+    reviewer: DiscussionReviewer,
+    reviews: int,
+    judger: DiscussionJudger,
+    manual_judgement: bool = None,
+    debug: bool = False
+) -> dict[str, any]:
+    advices = []
+    for i in range(reviews):
+        advice = reviewer(problem, proof)
+        advices.append(advice)
+    judge_process = judger(problem, proof, advices)
+    result = True if extract_judgement(judge_process) == 'true' else False
+    return {
+        'problem': problem,
+        'proof': proof,
+        'reviews': advices,
+        'evaluation': judge_process,
+        'judgement': result,
+        'manual_judgement': manual_judgement
+    }
+
+def naive_process_pipeline(
+    problem: Union[str, dict],
     solver: Solver,
     judger: VanillaJudger,
     debug: bool = False
@@ -95,32 +200,59 @@ def naive_process_pipeline(
     3. Extracts the 'boxed' result from judger's output.
     4. Returns a dictionary with all relevant logs.
     """
+    if isinstance(problem, dict):
+        problem = problem['problem']
     proof = remove_think_tags(solver(problem, debug=debug))
-    judge_process = judger(problem, proof, debug=debug)
-    result = extract_judgement(judge_process)
-    return {
-        'problem': problem,
-        'proof': proof,
-        'evaluation': judge_process,
-        'judgement': True if result == "true" else False
-    }
+    return naive_eval_pipeline(problem, proof, judger, debug=debug)
 
-def run_naive(args):
+def discussion_process_pipeline(
+    problem: Union[str, dict],
+    solver: Solver,
+    reviewer: DiscussionReviewer,
+    reviews: int,
+    judger: DiscussionJudger,
+    debug: bool = False
+) -> dict[str, any]:
     """
-    Running naive process pipeline on given problems
+    Helper function that:
+    1. Calls solver to get the proof.
+    2. Calls the reviewers to provide different advices to this proof
+    3. Calls judger to evaluate the proof based on these advices.
+    4. Extracts the 'boxed' result from judger's output.
+    5. Returns a dictionary with all relevant logs.
     """
-    solver = Solver(args.proof_model)
-    judger = VanillaJudger(args.eval_model)
+    if isinstance(problem, dict):
+        problem = problem['problem']
+    proof = remove_think_tags(solver(problem, debug=debug))
+    return discussion_eval_pipeline(problem, proof, reviewer, reviews, judger, debug=debug)
+
+def run(args):
     with open(args.problems, 'r', encoding='utf-8') as problems_file:
         problems = json.load(problems_file)
+
     logging.info(f"Running naive process pipeline with {len(problems)} problems")
     logs = []
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
         # Submit each problem to the thread pool
-        future_to_problem = {
-            executor.submit(naive_process_pipeline, p, solver, judger, args.debug): p
-            for p in problems
-        }
+        if args.method == "naive":
+            logging.info(f"Running naive pipeline with proof_model: {args.proof_model}, eval_model: {args.eval_model}")
+            solver = Solver(args.proof_model)
+            judger = VanillaJudger(args.eval_model)
+            future_to_problem = {
+                executor.submit(naive_process_pipeline, p, solver, judger, args.debug): p
+                for p in problems
+            }
+        elif args.method == "discussion":
+            logging.info(f"Running discussion pipeline with proof_model: {args.proof_model}, eval_model: {args.eval_model}")
+            logging.info(f"Total review numbers: {args.reviews}")
+            solver = Solver(args.proof_model)
+            reviewer = DiscussionReviewer(args.eval_model)
+            judger = DiscussionJudger(args.eval_model)
+            future_to_problem = {
+                executor.submit(discussion_process_pipeline, p, solver, reviewer, args.reviews ,judger, args.debug): p
+                for p in problems
+            }
 
         # Collect results as they complete
         for future in tqdm(concurrent.futures.as_completed(future_to_problem), 
@@ -139,35 +271,34 @@ def run_naive(args):
             json.dump(logs, log_path, indent=4, ensure_ascii=False)
             logging.info(f"Saved logs to path: {args.save_path}!")
 
-def naive_reeval_pipeline(
-    problem: str,
-    proof: str,
-    manual_judgement: bool,
-    judger: VanillaJudger,
-    debug: bool = False
-    ):
-    judge_process = judger(problem, proof, debug=debug)
-    result = True if extract_judgement(judge_process) == 'true' else False
-    return {
-        'problem': problem,
-        'proof': proof,
-        'evaluation': judge_process,
-        'judgement': result,
-        'manual_judgement': manual_judgement
-    }
 
 def reevaluate(args):
     with open(args.reevaluate, "r", encoding="utf-8") as file:
         samples = json.load(file)
-    judger = VanillaJudger(args.eval_model)
+
+    if args.false_only:
+        samples = [s for s in samples if not s['manual_judgement']]
+
     logging.info(f"Reevaluating dataset {args.reevaluate} with model {args.eval_model}")
     logs = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
         # Submit each problem to the thread pool
-        future_to_problem = {
-            executor.submit(naive_reeval_pipeline, s['problem'], s['proof'], s['manual_judgement'], judger, args.debug): s
-            for s in samples
-        }
+        if args.method == "naive":
+            logging.info(f"Running naive eval pipeline with eval_model: {args.eval_model}")
+            judger = VanillaJudger(args.eval_model)
+            future_to_problem = {
+                executor.submit(naive_eval_pipeline, s['problem'], s['proof'], judger, debug=args.debug, manual_judgement=s['manual_judgement']): s
+                for s in samples
+            }
+        elif args.method == "discussion":
+            logging.info(f"Running discussion eval pipeline with eval_model: {args.eval_model}")
+            logging.info(f"Total review numbers: {args.reviews}")
+            reviewer = DiscussionReviewer(args.eval_model)
+            judger = DiscussionJudger(args.eval_model)
+            future_to_problem = {
+                executor.submit(discussion_eval_pipeline, s['problem'], s['proof'], reviewer, args.reviews, judger, debug=args.debug, manual_judgement=s['manual_judgement']): s
+                for s in samples
+            }
 
         # Collect results as they complete
         for future in tqdm(concurrent.futures.as_completed(future_to_problem), 
@@ -209,7 +340,14 @@ def main():
     parser.add_argument('--proof_model', type=str, default='deepseek-r1', help="The action model the does the proof process")
     parser.add_argument('--eval_model', type=str, default='deepseek-r1', help="The base model for the natural language evaluation process")
     parser.add_argument('--reform_model', type=str, default='deepseek-v3', help="The model used for reformat the contents in the workflow")
-    parser.add_argument('--naive', default=False, action='store_true', help="Enable the naive direct evaluation method")
+    # parser.add_argument('--naive', default=False, action='store_true', help="Enable the naive direct evaluation method")
+    parser.add_argument(
+        '--method',
+        type=str,
+        choices=['naive', 'discussion'],
+        default="naive",
+        help="The type of pipeline used in our program"
+    )
     parser.add_argument('-t', '--temperature', type=float, default=0.6, help="The argument sets the global temperature of all agents")
     parser.add_argument('--seed', type=int, default=1121, help="The global seed for the whole program")
     parser.add_argument('-p', '--problems', type=str, default='', help="The path to the problems to be solved. It should be a file in json format, which contains a list of problems in natural language")
@@ -226,6 +364,9 @@ def main():
     parser.add_argument('-s', '--start', type=int, default=0, help="the start point of viewing samples")
     parser.add_argument('-n', '--n_samples', type=int, default=1, help="The length of samples to be viewed")
     parser.add_argument('-fo', '--false_only', action='store_true', default=False, help="view false cases only in the dataset")
+
+    # for discussion pipeline
+    parser.add_argument('-rs', '--reviews', type=int, default=3, help="The number of reviews or advices collected before judgement")
 
     args = parser.parse_args()
 
@@ -250,10 +391,7 @@ def main():
     AgentBase.seed = args.seed
     AgentBase.max_retries = args.max_retries
 
-    if args.naive:
-        run_naive(args)
-    else:
-        raise NotImplementedError("Other mode is not implemented yet.")
+    run(args)
 
 if __name__ == "__main__":
     main()
