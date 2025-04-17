@@ -192,7 +192,8 @@ def view_samples(args):
         samples = json.load(file)
 
     if args.false_only:
-        samples = [s for s in samples if not s['judgement']]
+        samples = [s for s in samples if not s['judgement'] or ('manual_judgement' in s.keys() and not s['manual_judgement'])]
+    logging.info(f"Total samples count: {len(samples)}")
 
     samples = samples[args.start : args.start + args.n_samples]
 
