@@ -113,7 +113,7 @@ class DiscussionReviewer(AgentBase):
              '### Candidate Proof\n'
              '\n'
              f'{proof}\n'
-             'You need to explain your rationales and state your judgement as an emphasized **true** or **false** at the end of your response.\n'
+             'You need to explain your rationales and decide whether this candidate can be accepted as a valid proof of this problem. State your judgement as an emphasized **true** or **false** at the end of your response.\n'
              }]
         return prompt
 
@@ -126,7 +126,7 @@ class DiscussionJudger(AgentBase):
             advices += f"#### Review {i+1}\n\n{c}\n"
         prompt = [
             {'role': 'user', 'content': 
-             "You are a judger that needs to carefully review and determine whether the candidate proof of this math problem is **complete**, **correct** and **rigorous**.\n"
+             "You are a judger that needs to carefully review the candidate proof of this math problem. You are given some advices from other reviewers, and you need to determine whether we can accept this candidate as a valid proof of this problem based on them.\n"
              "\n"
              "### Problem\n"
              "\n"
@@ -135,8 +135,6 @@ class DiscussionJudger(AgentBase):
              "### Candidate Proof\n"
              "\n"
              f"{proof}\n"
-             "\n"
-             "Here are some advices provided by other reviewers about this proof. You can carefully analyze and make judgements based on them.\n"
              "\n"
              "### Reviews\n"
              "\n"
@@ -159,6 +157,30 @@ def naive_eval_pipeline(
         'problem': problem,
         'proof': proof,
         'evaluation': judge_process,
+        'judgement': result,
+        'manual_judgement': manual_judgement
+    }
+
+def pessimistic_eval_pipeline(
+    problem: str,
+    proof: str,
+    reviewer: DiscussionReviewer,
+    reviews: int,
+    manual_judgement: bool = None,
+    debug: bool = False
+):
+    result = True
+    review = ""
+    for i in range(reviews):
+        review = reviewer(problem, proof)
+        review_res = True if extract_judgement(review) == "true" else False
+        result = result and review_res
+        if not result:
+            break
+    return {
+        'problem': problem,
+        'proof': proof,
+        'evaluation': review,
         'judgement': result,
         'manual_judgement': manual_judgement
     }
@@ -205,6 +227,26 @@ def naive_process_pipeline(
     proof = remove_think_tags(solver(problem, debug=debug))
     return naive_eval_pipeline(problem, proof, judger, debug=debug)
 
+def pessimistic_process_pipeline(
+    problem: Union[str, dict],
+    solver: Solver,
+    reviewer: DiscussionReviewer,
+    reviews: int,
+    debug: bool = False
+) -> dict[str, any]:
+    """
+    Helper function that:
+    1. Calls solver to get the proof.
+    2. Calls the reviewers to provide different advices to this proof
+    3. The answer is marked false if any one of the reviewers reports false
+    4. Extracts the 'boxed' result from judger's output.
+    5. Returns a dictionary with all relevant logs.
+    """
+    if isinstance(problem, dict):
+        problem = problem['problem']
+    proof = remove_think_tags(solver(problem, debug=debug))
+    return pessimistic_eval_pipeline(problem, proof, reviewer, reviews, debug=debug)
+
 def discussion_process_pipeline(
     problem: Union[str, dict],
     solver: Solver,
@@ -241,6 +283,15 @@ def run(args):
             judger = VanillaJudger(args.eval_model)
             future_to_problem = {
                 executor.submit(naive_process_pipeline, p, solver, judger, args.debug): p
+                for p in problems
+            }
+        elif args.method == "pessimistic_vote":
+            logging.info(f"Running pessimistic_vote pipeline with proof_model: {args.proof_model}, eval_model: {args.eval_model}")
+            logging.info(f"Total review numbers: {args.reviews}")
+            solver = Solver(args.proof_model)
+            reviewer = DiscussionReviewer(args.eval_model)
+            future_to_problem = {
+                executor.submit(pessimistic_process_pipeline, p, solver, reviewer, args.reviews ,judger, args.debug): p
                 for p in problems
             }
         elif args.method == "discussion":
@@ -288,6 +339,14 @@ def reevaluate(args):
             judger = VanillaJudger(args.eval_model)
             future_to_problem = {
                 executor.submit(naive_eval_pipeline, s['problem'], s['proof'], judger, debug=args.debug, manual_judgement=s['manual_judgement']): s
+                for s in samples
+            }
+        elif args.method == "pessimistic_vote":
+            logging.info(f"Running pessimistic_vote eval pipeline with eval_model: {args.eval_model}")
+            logging.info(f"Total review numbers: {args.reviews}")
+            reviewer = DiscussionReviewer(args.eval_model)
+            future_to_problem = {
+                executor.submit(pessimistic_eval_pipeline, s['problem'], s['proof'], reviewer, args.reviews, debug=args.debug, manual_judgement=s['manual_judgement']): s
                 for s in samples
             }
         elif args.method == "discussion":
@@ -344,7 +403,7 @@ def main():
     parser.add_argument(
         '--method',
         type=str,
-        choices=['naive', 'discussion'],
+        choices=['naive', 'discussion', 'pessimistic_vote'],
         default="naive",
         help="The type of pipeline used in our program"
     )
@@ -365,7 +424,7 @@ def main():
     parser.add_argument('-n', '--n_samples', type=int, default=1, help="The length of samples to be viewed")
     parser.add_argument('-fo', '--false_only', action='store_true', default=False, help="view false cases only in the dataset")
 
-    # for discussion pipeline
+    # for pessimistic multi vote and discussion pipeline
     parser.add_argument('-rs', '--reviews', type=int, default=3, help="The number of reviews or advices collected before judgement")
 
     args = parser.parse_args()
