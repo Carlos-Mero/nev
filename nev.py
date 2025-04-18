@@ -16,11 +16,40 @@ client = openai.OpenAI(
     base_url = apiconfig['OPENAI_BASE_URL']
 )
 
+def find_box(pred_str: str):
+    ans = pred_str.split("boxed")[-1]
+    if not ans:
+        return ""
+    if ans[0] == "{":
+        stack = 1
+        a = ""
+        for c in ans[1:]:
+            if c == "{":
+                stack += 1
+                a += c
+            elif c == "}":
+                stack -= 1
+                if stack == 0:
+                    break
+                a += c
+            else:
+                a += c
+    else:
+        a = ans.split("$")[0].strip()
+    return a
+
+def extract_boxed(text):
+    matches = re.findall(r'(true|false)', find_box(text), flags=re.IGNORECASE)
+    if matches:
+        return matches[-1].lower()
+    else:
+        return "false"
+
 def extract_judgement(text):
     matches = re.findall(r'\*\*(true|false)\*\*', text, re.IGNORECASE)
     if matches:
         return matches[-1].lower()
-    return "False"
+    return "false"
 
 def remove_think_tags(text):
     cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
@@ -85,7 +114,7 @@ class VanillaJudger(AgentBase):
                    '1. Complete\n'
                    '2. Correct\n'
                    '3. Rigorous\n'
-                   'You need to explain your rationales and state your judgement as an emphasized **true** or **false** at the end of your response.\n'
+                   'You need to explain your rationales and state your judgement as $\\boxed{true}$ or $\\boxed{false}$ at the end of your response.\n'
                    '\n'
                    '### Problem\n'
                    '\n'
@@ -113,7 +142,7 @@ class DiscussionReviewer(AgentBase):
              '### Candidate Proof\n'
              '\n'
              f'{proof}\n'
-             'You need to explain your rationales and decide whether this candidate can be accepted as a valid proof of this problem. State your judgement as an emphasized **true** or **false** at the end of your response.\n'
+             'You need to explain your rationales and decide whether this candidate can be accepted as a valid proof of this problem. State your judgement as $\\boxed{true}$ or $\\boxed{false}$ at the end of your response.\n'
              }]
         return prompt
 
@@ -139,7 +168,7 @@ class DiscussionJudger(AgentBase):
              "### Reviews\n"
              "\n"
              f"{advices}\n"
-             "State your judgement as an emphasized **true** or **false** at the end of your response."
+             "State your judgement as $\\boxed{true}$ or $\\boxed{false}$ at the end of your response."
              }
         ]
         return prompt
@@ -152,7 +181,7 @@ def naive_eval_pipeline(
     debug: bool = False
     ):
     judge_process = judger(problem, proof, debug=debug)
-    result = True if extract_judgement(judge_process) == 'true' else False
+    result = True if extract_boxed(judge_process) == 'true' else False
     return {
         'problem': problem,
         'proof': proof,
@@ -173,7 +202,7 @@ def pessimistic_eval_pipeline(
     review = ""
     for i in range(reviews):
         review = reviewer(problem, proof)
-        review_res = True if extract_judgement(review) == "true" else False
+        review_res = True if extract_boxed(review) == "true" else False
         result = result and review_res
         if not result:
             break
@@ -199,7 +228,7 @@ def discussion_eval_pipeline(
         advice = reviewer(problem, proof)
         advices.append(advice)
     judge_process = judger(problem, proof, advices)
-    result = True if extract_judgement(judge_process) == 'true' else False
+    result = True if extract_boxed(judge_process) == 'true' else False
     return {
         'problem': problem,
         'proof': proof,
