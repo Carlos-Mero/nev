@@ -320,7 +320,7 @@ def run(args):
             solver = Solver(args.proof_model)
             reviewer = DiscussionReviewer(args.eval_model)
             future_to_problem = {
-                executor.submit(pessimistic_process_pipeline, p, solver, reviewer, args.reviews ,judger, args.debug): p
+                executor.submit(pessimistic_process_pipeline, p, solver, reviewer, args.reviews , args.debug): p
                 for p in problems
             }
         elif args.method == "discussion":
