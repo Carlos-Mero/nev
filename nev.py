@@ -173,6 +173,28 @@ class DiscussionJudger(AgentBase):
         ]
         return prompt
 
+class ProofRefiner(AgentBase):
+    def __init__(self, model: str):
+        super().__init__(model)
+    def format_prompt(self, problem: str, proof: str, review: str, **kwargs):
+        return [
+            {'role': 'user', 'content':
+             "You are an expert that is knowledgeable across all domains in math. Here is a math problem and a candidate proof of it. However, our reviewer have found some flaws in this proof. The problem, proof and corresponding review are provided as follows. You need to refine or even rewrite this proof so that the given problem can be correctly solved.\n"
+             "\n"
+             "### Problem\n"
+             "\n"
+             f"{problem}\n"
+             "\n"
+             "### Candidate Proof\n"
+             "\n"
+             f"{proof}\n"
+             "\n"
+             "### Review\n"
+             "\n"
+             f"{review}\n"
+             }
+        ]
+
 def naive_eval_pipeline(
     problem: str,
     proof: str,
@@ -266,8 +288,8 @@ def pessimistic_process_pipeline(
     """
     Helper function that:
     1. Calls solver to get the proof.
-    2. Calls the reviewers to provide different advices to this proof
-    3. The answer is marked false if any one of the reviewers reports false
+    2. Calls the reviewers to provide different advices to this proof.
+    3. The answer is marked false if any one of the reviewers reports false.
     4. Extracts the 'boxed' result from judger's output.
     5. Returns a dictionary with all relevant logs.
     """
@@ -275,6 +297,33 @@ def pessimistic_process_pipeline(
         problem = problem['problem']
     proof = remove_think_tags(solver(problem, debug=debug))
     return pessimistic_eval_pipeline(problem, proof, reviewer, reviews, debug=debug)
+
+def pessimistic_refine_pipeline(
+    problem: Union[str, dict],
+    solver: Solver,
+    reviewer: DiscussionReviewer,
+    reviews: int,
+    refiner: ProofRefiner,
+    iterations: int,
+    debug: bool = False
+) -> dict[str, any]:
+    """
+    Helper function that:
+    1. Calls solver to get the proof.
+    2. Iteratively evaluate this proof with pessimistic_vote and refines this proof.
+    5. Returns a dictionary with all relevant logs.
+    """
+    if isinstance(problem, dict):
+        problem = problem['problem']
+    proof = remove_think_tags(solver(problem, debug=debug))
+    result = {}
+    for _ in range(iterations):
+        result = pessimistic_eval_pipeline(problem, proof, reviewer, reviews, debug=debug)
+        if result['judgement']:
+            break
+        else:
+            proof = remove_think_tags(refiner(problem, proof, result['evaluation'], debug=debug))
+    return result
 
 def discussion_process_pipeline(
     problem: Union[str, dict],
@@ -287,7 +336,7 @@ def discussion_process_pipeline(
     """
     Helper function that:
     1. Calls solver to get the proof.
-    2. Calls the reviewers to provide different advices to this proof
+    2. Calls the reviewers to provide different advices to this proof.
     3. Calls judger to evaluate the proof based on these advices.
     4. Extracts the 'boxed' result from judger's output.
     5. Returns a dictionary with all relevant logs.
@@ -316,16 +365,27 @@ def run(args):
             }
         elif args.method == "pessimistic_vote":
             logging.info(f"Running pessimistic_vote pipeline with proof_model: {args.proof_model}, eval_model: {args.eval_model}")
-            logging.info(f"Total review numbers: {args.reviews}")
+            logging.info(f"Total reviews: {args.reviews}")
             solver = Solver(args.proof_model)
             reviewer = DiscussionReviewer(args.eval_model)
             future_to_problem = {
-                executor.submit(pessimistic_process_pipeline, p, solver, reviewer, args.reviews , args.debug): p
+                executor.submit(pessimistic_process_pipeline, p, solver, reviewer, args.reviews, args.debug): p
+                for p in problems
+            }
+        elif args.method == "pessimistic_refine":
+            logging.info(f"Running pessimistic_refine pipeline with proof_model: {args.proof_model}, eval_model: {args.eval_model}")
+            logging.info(f"Total reviews: {args.reviews}")
+            logging.info(f"Total iterations: {args.iterations}")
+            solver = Solver(args.proof_model)
+            reviewer = DiscussionReviewer(args.eval_model)
+            refiner = ProofRefiner(args.proof_model)
+            future_to_problem = {
+                executor.submit(pessimistic_refine_pipeline, p, solver, reviewer, args.reviews, refiner, args.iterations, args.debug): p
                 for p in problems
             }
         elif args.method == "discussion":
             logging.info(f"Running discussion pipeline with proof_model: {args.proof_model}, eval_model: {args.eval_model}")
-            logging.info(f"Total review numbers: {args.reviews}")
+            logging.info(f"Total reviews: {args.reviews}")
             solver = Solver(args.proof_model)
             reviewer = DiscussionReviewer(args.eval_model)
             judger = DiscussionJudger(args.eval_model)
@@ -370,9 +430,9 @@ def reevaluate(args):
                 executor.submit(naive_eval_pipeline, s['problem'], s['proof'], judger, debug=args.debug, manual_judgement=s['manual_judgement']): s
                 for s in samples
             }
-        elif args.method == "pessimistic_vote":
+        elif args.method == "pessimistic_vote" or "pessimistic_refine": # These two methods refers to the same sampling mechanism
             logging.info(f"Running pessimistic_vote eval pipeline with eval_model: {args.eval_model}")
-            logging.info(f"Total review numbers: {args.reviews}")
+            logging.info(f"Total reviews: {args.reviews}")
             reviewer = DiscussionReviewer(args.eval_model)
             future_to_problem = {
                 executor.submit(pessimistic_eval_pipeline, s['problem'], s['proof'], reviewer, args.reviews, debug=args.debug, manual_judgement=s['manual_judgement']): s
@@ -380,7 +440,7 @@ def reevaluate(args):
             }
         elif args.method == "discussion":
             logging.info(f"Running discussion eval pipeline with eval_model: {args.eval_model}")
-            logging.info(f"Total review numbers: {args.reviews}")
+            logging.info(f"Total reviews: {args.reviews}")
             reviewer = DiscussionReviewer(args.eval_model)
             judger = DiscussionJudger(args.eval_model)
             future_to_problem = {
@@ -432,7 +492,7 @@ def main():
     parser.add_argument(
         '--method',
         type=str,
-        choices=['naive', 'discussion', 'pessimistic_vote'],
+        choices=['naive', 'discussion', 'pessimistic_vote', 'pessimistic_refine'],
         default="naive",
         help="The type of pipeline used in our program"
     )
@@ -455,6 +515,9 @@ def main():
 
     # for pessimistic multi vote and discussion pipeline
     parser.add_argument('-rs', '--reviews', type=int, default=3, help="The number of reviews or advices collected before judgement")
+
+    # for pessimistic refining pipeline
+    parser.add_argument('-its', '--iterations', type=int, default=3, help="The maximum refining iterations in the pipeline")
 
     args = parser.parse_args()
 
