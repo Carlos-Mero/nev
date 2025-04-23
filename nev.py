@@ -60,7 +60,7 @@ def convert_json_to_md(json_path, md_path) -> None:
     This function converts a JSON file to a markdown file.
     Arguments: json_path: The path to the JSON file.
                md_path: The path to the markdown file.
-    The output markdown file contains the problems, proofs, evaluations, judgements, and comments.
+    The output markdown file contains the problems, proofs, evaluations, judgements(from both the judger and human annotators), and comments.
     """
     with open(json_path, "r", encoding="utf-8") as f:
         samples = json.load(f)
@@ -70,13 +70,13 @@ def convert_json_to_md(json_path, md_path) -> None:
             f.write(f"## Problem {idx}\n\n")
 
             f.write("### Problem:\n\n")
-            f.write(f"{item['problem'].strip()}\n\n")
+            f.write(f"{item['problem'].strip().replace('##', '####')}\n\n")
 
             f.write("### Proof:\n\n")
-            f.write(f"{item['proof'].strip()}\n\n")
+            f.write(f"{item['proof'].strip().replace('##', '####')}\n\n")
 
             f.write("### Evaluation by Judger:\n\n")
-            f.write(f"{item['evaluation'].strip()}\n\n")
+            f.write(f"{item['evaluation'].strip().replace('##', '####')}\n\n")
 
             f.write("### Judger judgement:\n\n")
             f.write("Correct\n\n" if item['judgement'] else "Incorrect\n\n")
@@ -92,7 +92,7 @@ def convert_json_to_md(json_path, md_path) -> None:
             
             if 'comment' in item:
                 f.write("### Comment:\n\n")
-                f.write(f"{item['comment'].strip()}\n\n")
+                f.write(f"{item['comment'].strip().replace('##', '####')}\n\n")
 
             f.write("---\n\n")
 
