@@ -55,6 +55,49 @@ def remove_think_tags(text):
     cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     return cleaned_text
 
+def convert_json_to_md(json_path, md_path) -> None:
+    """
+    This function converts a JSON file to a markdown file.
+    Arguments: json_path: The path to the JSON file.
+               md_path: The path to the markdown file.
+    The output markdown file contains the problems, proofs, evaluations, judgements, and comments.
+    """
+    with open(json_path, "r", encoding="utf-8") as f:
+        samples = json.load(f)
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        for idx, item in enumerate(samples, start=1):
+            f.write(f"## Problem {idx}\n\n")
+
+            f.write("### Problem:\n\n")
+            f.write(f"{item['problem'].strip()}\n\n")
+
+            f.write("### Proof:\n\n")
+            f.write(f"{item['proof'].strip()}\n\n")
+
+            f.write("### Evaluation by Judger:\n\n")
+            f.write(f"{item['evaluation'].strip()}\n\n")
+
+            f.write("### Judger judgement:\n\n")
+            f.write("Correct\n\n" if item['judgement'] else "Incorrect\n\n")
+
+            if 'manual_judgement' in item:
+                f.write("### Manual judgement:\n\n")
+                if item['manual_judgement'] is True:
+                    f.write("Correct\n\n")
+                elif item['manual_judgement'] is False:
+                    f.write("Incorrect\n\n")
+                else:  # Null or other values
+                    f.write("Not provided\n\n")
+            
+            if 'comment' in item:
+                f.write("### Comment:\n\n")
+                f.write(f"{item['comment'].strip()}\n\n")
+
+            f.write("---\n\n")
+
+    print(f"Converted {len(samples)} problems to markdown and saved to {md_path}")
+
 class AgentBase:
     temperature = 0.6
     seed = 1121
@@ -410,7 +453,8 @@ def run(args):
         with open(args.save_path, "w", encoding='utf-8') as log_path:
             json.dump(logs, log_path, indent=4, ensure_ascii=False)
             logging.info(f"Saved logs to path: {args.save_path}!")
-
+        convert_json_to_md(args.save_path, args.save_path.replace('.json', '.md')) # convert to md file
+        logging.info(f"Converted logs to markdown and saved to {args.save_path.replace('.json', '.md')}!")
 
 def reevaluate(args):
     with open(args.reevaluate, "r", encoding="utf-8") as file:
