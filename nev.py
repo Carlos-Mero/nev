@@ -60,7 +60,7 @@ def convert_json_to_md(json_path, md_path) -> None:
     This function converts a JSON file to a markdown file.
     Arguments: json_path: The path to the JSON file.
                md_path: The path to the markdown file.
-    The output markdown file contains the problems, proofs, evaluations, judgements(by judger and by human), and comments.
+    The output markdown file contains the problems, proofs, evaluations, judgements(from both the judger and human annotators), and comments.
     """
     with open(json_path, "r", encoding="utf-8") as f:
         samples = json.load(f)
