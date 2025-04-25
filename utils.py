@@ -5,7 +5,7 @@ import logging
 def find_box(pred_str: str):
     ans = pred_str.split("boxed")[-1]
     if not ans:
-        return ""
+        return None
     if ans[0] == "{":
         stack = 1
         a = ""
@@ -22,7 +22,7 @@ def find_box(pred_str: str):
                 a += c
     else:
         a = ans.split("$")[0].strip()
-    return a
+    return a if a else None
 
 def extract_boxed(text):
     matches = re.findall(r'(true|false)', find_box(text), flags=re.IGNORECASE)
@@ -39,6 +39,19 @@ def extract_judgement(text):
 
 def remove_think_tags(text):
     cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    return cleaned_text
+
+def extract_tag_content(text, tag):
+    pattern = fr"<{tag}>.*?</{tag}>"
+    matches = re.findall(pattern, text, flags=re.DOTALL)
+    if matches:
+        return matches[-1].lower()
+    else:
+        logging.warning("No content extracted in given tag.")
+        return None
+
+def remove_tag_content(text, tag):
+    cleaned_text = re.sub(fr'<{tag}>.*?</{tag}>', '', text, flags=re.DOTALL)
     return cleaned_text
 
 def convert_json_to_md(json_path, md_path) -> None:

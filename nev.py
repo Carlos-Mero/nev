@@ -6,8 +6,8 @@ import concurrent.futures
 from tqdm import tqdm
 
 from utils import convert_json_to_md, view_samples
-from agents import AgentBase, Solver, VanillaJudger, DiscussionReviewer, DiscussionJudger, ProofRefiner
-from pipeline import naive_eval_pipeline, pessimistic_eval_pipeline, discussion_eval_pipeline, naive_process_pipeline, pessimistic_process_pipeline, pessimistic_refine_pipeline, discussion_process_pipeline
+from agents import AgentBase, Solver, VanillaJudger, Reviewer, DiscussionJudger, ProofRefiner
+from pipeline import naive_eval_pipeline, pessimistic_eval_pipeline, discussion_eval_pipeline, naive_process_pipeline, pessimistic_process_pipeline, pessimistic_refine_pipeline, discussion_process_pipeline, MathAgentPipeline
 
 def run(args):
     with open(args.problems, 'r', encoding='utf-8') as problems_file:
@@ -16,6 +16,38 @@ def run(args):
     logging.info(f"Running naive process pipeline with {len(problems)} problems")
     logs = []
 
+    if args.method == "ma":
+        # MathAgent does not require explicit parallel sampling and logging utils
+        # It will immediately return after completed ma sampling loop
+        logging.info(f"Running MathAgent loop with proof_model: {args.proof_model}")
+        logging.info(f"using pessimistic verification with eval_model: {args.eval_model}")
+        logging.info(f"doing chores with reform_model: {args.reform_model}")
+        logging.info("Some key hyperparameters are as follows:")
+        logging.info(f"Max exploration steps: {args.steps}")
+        logging.info(f"Num reviews per proof: {args.reviews}")
+        logging.info(f"Max refine iterations: {args.iterations}")
+        logging.info(f"Max solver parallel for a single conjecture: {args.solver_parallel}")
+
+        agent = MathAgentPipeline(
+            proof_model=args.proof_model,
+            eval_model=args.eval_model,
+            reform_model=args.reform_model,
+            max_steps=args.steps,
+            reviews=args.reviews,
+            refine_iterations=args.iterations,
+            parallel_solve_iterations=args.solver_parallel,
+            log_dir=args.log_dir,
+            log_per_steps=args.log_per_steps,
+        )
+
+        for p in tqdm(problems, desc="Problems"):
+            if isinstance(p, dict):
+                p = p['problem']
+            logging.info(f"Dealing with problem: {p}")
+            agent(p)
+
+        return
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
         # Submit each problem to the thread pool
         if args.method == "naive":
@@ -23,16 +55,16 @@ def run(args):
             solver = Solver(args.proof_model)
             judger = VanillaJudger(args.eval_model)
             future_to_problem = {
-                executor.submit(naive_process_pipeline, p, solver, judger, args.debug): p
+                executor.submit(naive_process_pipeline, p, solver, judger): p
                 for p in problems
             }
         elif args.method == "pessimistic_vote":
             logging.info(f"Running pessimistic_vote pipeline with proof_model: {args.proof_model}, eval_model: {args.eval_model}")
             logging.info(f"Total reviews: {args.reviews}")
             solver = Solver(args.proof_model)
-            reviewer = DiscussionReviewer(args.eval_model)
+            reviewer = Reviewer(args.eval_model)
             future_to_problem = {
-                executor.submit(pessimistic_process_pipeline, p, solver, reviewer, args.reviews, args.debug): p
+                executor.submit(pessimistic_process_pipeline, p, solver, reviewer, args.reviews): p
                 for p in problems
             }
         elif args.method == "pessimistic_refine":
@@ -40,20 +72,20 @@ def run(args):
             logging.info(f"Total reviews: {args.reviews}")
             logging.info(f"Total iterations: {args.iterations}")
             solver = Solver(args.proof_model)
-            reviewer = DiscussionReviewer(args.eval_model)
+            reviewer = Reviewer(args.eval_model)
             refiner = ProofRefiner(args.proof_model)
             future_to_problem = {
-                executor.submit(pessimistic_refine_pipeline, p, solver, reviewer, args.reviews, refiner, args.iterations, args.debug): p
+                executor.submit(pessimistic_refine_pipeline, p, solver, reviewer, args.reviews, refiner, args.iterations): p
                 for p in problems
             }
         elif args.method == "discussion":
             logging.info(f"Running discussion pipeline with proof_model: {args.proof_model}, eval_model: {args.eval_model}")
             logging.info(f"Total reviews: {args.reviews}")
             solver = Solver(args.proof_model)
-            reviewer = DiscussionReviewer(args.eval_model)
+            reviewer = Reviewer(args.eval_model)
             judger = DiscussionJudger(args.eval_model)
             future_to_problem = {
-                executor.submit(discussion_process_pipeline, p, solver, reviewer, args.reviews ,judger, args.debug): p
+                executor.submit(discussion_process_pipeline, p, solver, reviewer, args.reviews ,judger): p
                 for p in problems
             }
 
@@ -91,24 +123,24 @@ def reevaluate(args):
             logging.info(f"Running naive eval pipeline with eval_model: {args.eval_model}")
             judger = VanillaJudger(args.eval_model)
             future_to_problem = {
-                executor.submit(naive_eval_pipeline, s['problem'], s['proof'], judger, debug=args.debug, manual_judgement=s['manual_judgement']): s
+                executor.submit(naive_eval_pipeline, s['problem'], s['proof'], judger, manual_judgement=s['manual_judgement']): s
                 for s in samples
             }
         elif args.method == "pessimistic_vote" or "pessimistic_refine": # These two methods refers to the same sampling mechanism
             logging.info(f"Running pessimistic_vote eval pipeline with eval_model: {args.eval_model}")
             logging.info(f"Total reviews: {args.reviews}")
-            reviewer = DiscussionReviewer(args.eval_model)
+            reviewer = Reviewer(args.eval_model)
             future_to_problem = {
-                executor.submit(pessimistic_eval_pipeline, s['problem'], s['proof'], reviewer, args.reviews, debug=args.debug, manual_judgement=s['manual_judgement']): s
+                executor.submit(pessimistic_eval_pipeline, s['problem'], s['proof'], reviewer, args.reviews, manual_judgement=s['manual_judgement']): s
                 for s in samples
             }
         elif args.method == "discussion":
             logging.info(f"Running discussion eval pipeline with eval_model: {args.eval_model}")
             logging.info(f"Total reviews: {args.reviews}")
-            reviewer = DiscussionReviewer(args.eval_model)
+            reviewer = Reviewer(args.eval_model)
             judger = DiscussionJudger(args.eval_model)
             future_to_problem = {
-                executor.submit(discussion_eval_pipeline, s['problem'], s['proof'], reviewer, args.reviews, judger, debug=args.debug, manual_judgement=s['manual_judgement']): s
+                executor.submit(discussion_eval_pipeline, s['problem'], s['proof'], reviewer, args.reviews, judger, manual_judgement=s['manual_judgement']): s
                 for s in samples
             }
 
@@ -139,9 +171,9 @@ def main():
     parser.add_argument(
         '--method',
         type=str,
-        choices=['naive', 'discussion', 'pessimistic_vote', 'pessimistic_refine'],
+        choices=['naive', 'discussion', 'pessimistic_vote', 'pessimistic_refine', 'ma'],
         default="naive",
-        help="The type of pipeline used in our program"
+        help="The type of pipeline used in our program, ma for MathAgent loop."
     )
     parser.add_argument('-t', '--temperature', type=float, default=0.6, help="The argument sets the global temperature of all agents")
     parser.add_argument('--seed', type=int, default=1121, help="The global seed for the whole program")
@@ -166,6 +198,12 @@ def main():
     # for pessimistic refining pipeline
     parser.add_argument('-its', '--iterations', type=int, default=3, help="The maximum refining iterations in the pipeline")
 
+    # for MathAgent pipeline
+    parser.add_argument('--steps', type=int, default=6, help="The maximum explore iterations of our math agent")
+    parser.add_argument('--solver_parallel', type=int, default=1, help="The maximum parallel solve process for a single conjecture")
+    parser.add_argument('--log_dir', type=str, default="samples", help="The target log directory for math agent")
+    parser.add_argument('--log_per_steps', type=int, default=10, help="Save logs in MathAgent after these steps")
+
     args = parser.parse_args()
 
     if args.debug:
@@ -188,6 +226,7 @@ def main():
     AgentBase.temperature = args.temperature
     AgentBase.seed = args.seed
     AgentBase.max_retries = args.max_retries
+    AgentBase.debug = args.debug
 
     run(args)
 
