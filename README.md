@@ -76,6 +76,33 @@ python nev.py --method pessimistic_vote --reviews 3 -p problems.json --save_path
 python nev.py --method pessimistic_refine --reviews 3 --iterations 2 -p problems.json --save_path refine_results.json
 ```
 
+The outputs contain:
+
+- **JSON log**: Contains each problem, generated proof, evaluation text, auto judgement, and optional manual annotations.
+- **Markdown report**: A human-readable summary (`.md` file) generated alongside the JSON log.
+
+
+### 3. MathAgent Sampling Loop
+
+The MathAgent pipeline (`ma` method) explores conjectures iteratively using planning, solving, reviewing, and refining steps. It maintains a memory of explored goals and logs detailed sampling steps.
+
+```bash
+# Run MathAgent sampling with default settings
+python nev.py \
+  --method ma \
+  --proof_model deepseek-r1 \
+  --eval_model deepseek-r1 \
+  --reform_model deepseek-v3 \
+  --steps 6 \   # max exploration iterations
+  --solver_parallel 1 \   # parallel solve processes per conjecture
+  --log_dir samples \   # output directory for detailed logs
+  --log_per_steps 10 \   # flush logs every N steps
+  -p problems.json \
+  --save_path ma_results.json
+```
+
+Logs will be written under the `samples/` directory (or your chosen `--log_dir`), containing JSON files for each step. After sampling completes, the final proofs and judgements are saved to `ma_results.json`.
+
 ### 4. Re-evaluate Annotated Dataset
 
 If you have a dataset with manual judgements, re-run evaluation to measure model accuracy:
@@ -88,11 +115,6 @@ python nev.py --reevaluate annotated.json --eval_model deepseek-r1 --save_path r
 ```bash
 python nev.py --view results.json --start 0 --n_samples 3 [--false_only]
 ```
-
-## Output
-
-- **JSON log**: Contains each problem, generated proof, evaluation text, auto judgement, and optional manual annotations.
-- **Markdown report**: A human-readable summary (`.md` file) generated alongside the JSON log.
 
 ## Contributing
 
