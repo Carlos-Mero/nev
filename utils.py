@@ -105,11 +105,16 @@ def view_samples(args):
         samples = [s for s in samples if not s['judgement'] or ('manual_judgement' in s.keys() and not s['manual_judgement'])]
     logging.info(f"Total samples count: {len(samples)}")
 
-    samples = samples[args.start : args.start + args.n_samples]
+    if isinstance(samples, list):
+        samples = samples[args.start : args.start + args.n_samples]
 
-    for i, s in enumerate(samples):
+        for i, s in enumerate(samples):
+            print("#" * 50 + "\n")
+            print(f"viewing sample {args.start + i}\n")
+            for key, value in s.items():
+                print(f"\033[92m{key.upper()}\033[0m: {value}\n")
+    else:
         print("#" * 50 + "\n")
-        print(f"viewing sample {args.start + i}\n")
-        for key, value in s.items():
+        print("viewing logs\n")
+        for key, value in samples.items():
             print(f"\033[92m{key.upper()}\033[0m: {value}\n")
-
