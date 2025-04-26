@@ -5,6 +5,7 @@ import os
 import json
 import logging
 from typing import Union
+import concurrent.futures
 
 from tqdm import tqdm
 
@@ -199,16 +200,23 @@ class MathAgentPipeline():
         """
         logging.info("Start evaluation with pessimistic verification")
 
-        varif = True
-        num_reviews = 0
-        with tqdm(total=self.reviews, desc="pverify", leave=False) as vpbar:
-            while varif and num_reviews < self.reviews:
-                num_reviews += 1
-                raw_review = self.reviewer(conjecture, judgement, proof, self.memory)
-                varif = False if find_box(raw_review) == "invalid" else True
-                vpbar.update(1)
-                if not varif:
+        # parallel pessimistic evaluation
+        args = [(conjecture, judgement, proof, self.memory)] * self.reviews
+        with concurrent.futures.ThreadPoolExecutor(max_workers = 1 if self.reviewer.debug else self.reviews) as executor:
+            futures = [
+                executor.submit(self.reviewer, *arg)
+                for arg in args
+            ]
+
+            for future in tqdm(concurrent.futures.as_completed(futures),
+                               total=self.reviews,
+                               desc="pverify"):
+                raw_review = future.result()
+                if find_box(raw_review) == "invalid":
+                    for f in futures:
+                        f.cancel()
                     return raw_review
+
         return None
 
     def refine_proof(self, conjecture: str, judgement: str, proof: str, verification: str) -> tuple[str, str]:
@@ -276,7 +284,7 @@ class MathAgentPipeline():
         parallel_solves = 0
         while not solved and parallel_solves < self.parallel_solve_iterations:
             parallel_solves += 1
-            logging.info(f"Trying to solve conjecture: {conjecture}")
+            logging.info(f"Trying to solve conjecture:\n{conjecture}")
             raw_proof = self.solver(conjecture, self.memory)
             judgement = find_box(raw_proof)
             proof = extract_tag_content(raw_proof, "proof")

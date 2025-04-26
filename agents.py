@@ -28,14 +28,16 @@ class AgentBase:
         prompt = self.format_prompt(*args)
         for attempt in range(self.max_retries):
             try:
-                stream = client.chat.completions.create(
-                    model=self.model,
-                    temperature=self.temperature,
-                    seed=self.seed,
-                    timeout=300000,
-                    messages=prompt,
-                    stream=True
-                )
+                client_params = {
+                    'model': self.model,
+                    'temperature': self.temperature,
+                    'timeout': 300000,
+                    'messages': prompt,
+                    'stream': True
+                }
+                if self.debug:
+                    client_params['seed'] = self.seed
+                stream = client.chat.completions.create(**client_params)
                 response_content = ""
                 for chunk in stream:
                     chunk_content = chunk.choices[0].delta.content
@@ -168,7 +170,7 @@ def format_context_element(e: dict) -> str:
         f'<{e['type']}>\n'
         f'**content**: {e['content']}\n'
         f'**correctness**: **{e['correctness']}**\n'
-        f'**comment**: {e['comment']}\n' if e['comment'] is not None else ''
+        # f'**comment**: {e['comment']}\n' if e['comment'] is not None else ''
         f'</{e['type']}>'
     )
 
@@ -176,7 +178,8 @@ class Planner(AgentBase):
     def __init__(self, model: str):
         super().__init__(model)
     def format_prompt(self, problem: str, context: list[dict]):
-        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history explorations. They can serve as the background of the conjecture and proof. If you find the target problem is already in the context and marked as explicit true or false, you can directly report $\\boxed{solved}$ in your response. You do not need to propose new conjectures in this case.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in reversed(context)]) if context else ''
+        self.seed += 1
+        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history explorations. They can serve as the background of the conjecture and proof. If you find the target problem is already in the context and marked as explicit true or false, you can directly report $\\boxed{solved}$ in your response. You do not need to propose new conjectures in this case. Remember only the conjectures with **true** correctness can be used as the base of new conjectures. False conjectures are only included for reference.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in reversed(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -194,6 +197,7 @@ class SolverWithContext(AgentBase):
     def __init__(self, model: str):
         super().__init__(model)
     def format_prompt(self, conjecture: str, context: list[dict]):
+        self.seed += 1
         context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. You can verify the above conjecture based on them.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in reversed(context)]) if context else ''
         return [
             {'role': 'user', 'content':
@@ -236,6 +240,7 @@ class RefinerWithContext(AgentBase):
     def __init__(self, model: str):
         super().__init__(model)
     def format_prompt(self, conjecture: str, judgement: str, proof: str, verification: str, context: list[dict]):
+        self.seed += 1
         context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in reversed(context)]) if context else ''
         return [
             {'role': 'user', 'content':
