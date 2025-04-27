@@ -16,7 +16,7 @@ def run(args):
     logging.info(f"Running naive process pipeline with {len(problems)} problems")
     logs = []
 
-    if args.method == "ma":
+    if args.method == "ma" or args.method == "mas":
         # MathAgent does not require explicit parallel sampling and logging utils
         # It will immediately return after completed ma sampling loop
         logging.info(f"Running MathAgent loop with proof_model: {args.proof_model}")
@@ -29,6 +29,7 @@ def run(args):
         logging.info(f"Max solver parallel for a single conjecture: {args.solver_parallel}")
 
         agent = MathAgentPipeline(
+            method=args.method,
             proof_model=args.proof_model,
             eval_model=args.eval_model,
             reform_model=args.reform_model,
@@ -171,7 +172,7 @@ def main():
     parser.add_argument(
         '--method',
         type=str,
-        choices=['naive', 'discussion', 'pessimistic_vote', 'pessimistic_refine', 'ma'],
+        choices=['naive', 'discussion', 'pessimistic_vote', 'pessimistic_refine', 'ma', 'mas'],
         default="naive",
         help="The type of pipeline used in our program, ma for MathAgent loop."
     )

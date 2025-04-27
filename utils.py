@@ -45,7 +45,16 @@ def extract_tag_content(text, tag):
     pattern = fr"<{tag}>.*?</{tag}>"
     matches = re.findall(pattern, text, flags=re.DOTALL)
     if matches:
-        return matches[-1].lower()
+        return matches[-1]
+    else:
+        logging.warning("No content extracted in given tag.")
+        return None
+
+def extract_all_tag_content(text, tag):
+    pattern = fr"<{tag}>.*?</{tag}>"
+    matches = re.findall(pattern, text, flags=re.DOTALL)
+    if matches:
+        return matches
     else:
         logging.warning("No content extracted in given tag.")
         return None

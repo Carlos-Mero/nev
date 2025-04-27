@@ -1,5 +1,5 @@
-from utils import extract_boxed, remove_think_tags, find_box, extract_tag_content
-from agents import Solver, VanillaJudger, Reviewer, DiscussionJudger, ProofRefiner, Planner, SolverWithContext, VerifierWithContext, RefinerWithContext
+from utils import extract_boxed, remove_think_tags, find_box, extract_tag_content, extract_all_tag_content
+from agents import Solver, VanillaJudger, Reviewer, DiscussionJudger, ProofRefiner, Planner, SolverWithContext, VerifierWithContext, RefinerWithContext, Explorer, ExpReviewer, ExpRefiner
 from typing import Optional
 import os
 import json
@@ -164,6 +164,7 @@ class MathAgentPipeline():
     5. Memory mechanism to consistantly collect and facilitate exploration of the open problem
     """
     def __init__(self,
+                 method: str,
                  proof_model: str,
                  eval_model: str,
                  reform_model: str,
@@ -174,6 +175,7 @@ class MathAgentPipeline():
                  log_dir: str = "samples",
                  log_per_steps: int = 10,
                  ):
+        self.method = method
         self.proof_model = proof_model
         self.eval_model = eval_model
         self.reform_model = reform_model
@@ -186,10 +188,17 @@ class MathAgentPipeline():
         self.log_per_steps = log_per_steps
 
         self.memory = []
-        self.planner = Planner(self.proof_model)
-        self.solver = SolverWithContext(self.proof_model)
-        self.reviewer = VerifierWithContext(self.eval_model)
-        self.refiner = RefinerWithContext(self.proof_model)
+        if self.method == 'ma':
+            self.planner = Planner(self.proof_model)
+            self.solver = SolverWithContext(self.proof_model)
+            self.reviewer = VerifierWithContext(self.eval_model)
+            self.refiner = RefinerWithContext(self.proof_model)
+        elif self.method == 'mas':
+            self.explorer = Explorer(self.proof_model)
+            self.reviewer = ExpReviewer(self.eval_model)
+            self.refiner = ExpRefiner(self.proof_model)
+        else:
+            raise NotImplementedError("Unknown method in MathAgent.")
 
     def pessimistic_eval(self, conjecture: str, judgement: str, proof: str) -> Optional[str]:
         """
@@ -201,7 +210,11 @@ class MathAgentPipeline():
         logging.info("Start evaluation with pessimistic verification")
 
         # parallel pessimistic evaluation
-        args = [(conjecture, judgement, proof, self.memory)] * self.reviews
+        if self.method == "ma":
+            args = [(conjecture, judgement, proof, self.memory)] * self.reviews
+        elif self.method == "mas":
+            args = [(conjecture, proof, self.memory)] * self.reviews
+
         with concurrent.futures.ThreadPoolExecutor(max_workers = 1 if self.reviewer.debug else self.reviews) as executor:
             futures = [
                 executor.submit(self.reviewer, *arg)
@@ -230,6 +243,18 @@ class MathAgentPipeline():
         new_judgement = find_box(raw_refinement)
         new_proof = extract_tag_content(raw_refinement, "proof")
         return (new_judgement, new_proof)
+
+    def refine_proof_mas(self, conjecture: str, proof: str, review: str) -> tuple[str, str]:
+        """
+        This function refines the proof in mas setting with given verification when the corresponding judgement or proof is not valid.
+        It will return a new tuple containing:
+        [new_conjecture, new_proof]
+        """
+        logging.info("Start refining proof")
+        raw_refinement = self.refiner(conjecture, proof, review, self.memory)
+        new_conjecture = extract_tag_content(raw_refinement, "conjecture")
+        new_proof = extract_tag_content(raw_refinement, "proof")
+        return (new_conjecture, new_proof)
 
     def update_memory(self,
                       type: str,
@@ -320,6 +345,57 @@ class MathAgentPipeline():
 
         return None
 
+    def explore_iteration_simplified(self, problem: str) -> Optional[bool]:
+        """
+        Explore for proof of this problem for one step (simplifier).
+        It will propose a new goal, solve and verify it to update its memory.
+        There is three possible return values of this function:
+        1. true. The given problem is successfully solved.
+        2. None. The given problem is not solved yet, and we need another iteration to finally solve this problem.
+        """
+        raw_exploration = self.explorer(problem, self.memory)
+
+        # Extract, review, refine and collect new conjectures
+        conjectures = extract_all_tag_content(raw_exploration, "conjecture")
+        proofs = extract_all_tag_content(raw_exploration, "proof")
+        for c, p in zip(conjectures, proofs):
+            for _ in range(self.refine_iterations):
+                verification = self.pessimistic_eval(c, None, p)
+                if verification is None:
+                    # The conjecture is solved, update memory
+                    self.update_memory(
+                        type='conjecture',
+                        content=c,
+                        correctness=None,
+                        proof=p,
+                        comment=None
+                    )
+                    break
+                else:
+                    c, p = self.refine_proof_mas(c, p, verification)
+
+        # Examine the final proof
+        final_proof = extract_tag_content(raw_exploration, "final_proof")
+        if final_proof is None:
+            return None
+        else:
+            for _ in range(self.refine_iterations):
+                verification = self.pessimistic_eval(problem, None, final_proof)
+                if verification is None:
+                    # The conjecture is solved, update memory
+                    self.update_memory(
+                        type='conjecture',
+                        content=problem,
+                        correctness=None,
+                        proof=final_proof,
+                        comment=None
+                    )
+                    return True
+                else:
+                    _, final_proof = self.refine_proof_mas(c, p, verification)
+
+        return None
+
     def init_context(self, problem: str):
         """
         This function will initialize the solver's memory based on the problem statement.
@@ -368,7 +444,11 @@ class MathAgentPipeline():
                     self.save_logs(problem, correctness)
 
                 self.current_steps += 1
-                correctness = self.explore_iteration(problem)
+                if self.method == "ma":
+                    correctness = self.explore_iteration(problem)
+                elif self.method == "mas":
+                    correctness = self.explore_iteration_simplified(problem)
+
                 pbar.update(1)
 
         self.save_logs(problem, correctness)
