@@ -84,21 +84,21 @@ The outputs contain:
 
 ### 3. MathAgent Sampling Loop
 
-The MathAgent pipeline (`ma` method) explores conjectures iteratively using planning, solving, reviewing, and refining steps. It maintains a memory of explored goals and logs detailed sampling steps.
+The MathAgent simplifier pipeline (`mas` method) explores conjectures iteratively using planning, solving, reviewing, and refining steps. It maintains a memory of explored goals and logs detailed sampling steps.
 
 ```bash
 # Run MathAgent sampling with default settings
 python nev.py \
-  --method ma \
+  --method mas \
   --proof_model deepseek-r1 \
   --eval_model deepseek-r1 \
   --reform_model deepseek-v3 \
   --steps 6 \   # max exploration iterations
-  --solver_parallel 1 \   # parallel solve processes per conjecture
+  --reviews 3 \ # reviewers in pessimistic verification
+  --iterations 2 \ # maximum refine iterations for each proof
   --log_dir samples \   # output directory for detailed logs
   --log_per_steps 10 \   # flush logs every N steps
-  -p problems.json \
-  --save_path ma_results.json
+  -p problems.json
 ```
 
 Logs will be written under the `samples/` directory (or your chosen `--log_dir`), containing JSON files for each step. After sampling completes, the final proofs and judgements are saved to `ma_results.json`.
