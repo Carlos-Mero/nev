@@ -47,7 +47,7 @@ def extract_tag_content(text, tag):
     if matches:
         return matches[-1]
     else:
-        logging.warning("No content extracted in given tag.")
+        logging.warning(f"No content extracted in given tag <{tag}>.")
         return None
 
 def extract_all_tag_content(text, tag):
@@ -56,7 +56,7 @@ def extract_all_tag_content(text, tag):
     if matches:
         return matches
     else:
-        logging.warning("No content extracted in given tag.")
+        logging.warning(f"No content extracted in given tag <{tag}>.")
         return None
 
 def remove_tag_content(text, tag):
