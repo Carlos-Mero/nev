@@ -358,41 +358,41 @@ class MathAgentPipeline():
         # Extract, review, refine and collect new conjectures
         conjectures = extract_all_tag_content(raw_exploration, "conjecture")
         proofs = extract_all_tag_content(raw_exploration, "proof")
-        for c, p in zip(conjectures, proofs):
-            for _ in range(self.refine_iterations):
-                verification = self.pessimistic_eval(c, None, p)
-                if verification is None:
-                    # The conjecture is solved, update memory
-                    self.update_memory(
-                        type='conjecture',
-                        content=c,
-                        correctness=None,
-                        proof=p,
-                        comment=None
-                    )
-                    break
-                else:
-                    c, p = self.refine_proof_mas(c, p, verification)
+        if conjectures is not None and proofs is not None and len(conjectures) == len(proofs):
+            for c, p in zip(conjectures, proofs):
+                for _ in range(self.refine_iterations):
+                    verification = self.pessimistic_eval(c, None, p)
+                    if verification is None:
+                        # The conjecture is solved, update memory
+                        self.update_memory(
+                            type='conjecture',
+                            content=c,
+                            correctness=None,
+                            proof=p,
+                            comment=None
+                        )
+                        break
+                    else:
+                        c, p = self.refine_proof_mas(c, p, verification)
 
         # Examine the final proof
         final_proof = extract_tag_content(raw_exploration, "final_proof")
         if final_proof is None:
             return None
         else:
-            for _ in range(self.refine_iterations):
-                verification = self.pessimistic_eval(problem, None, final_proof)
-                if verification is None:
-                    # The conjecture is solved, update memory
-                    self.update_memory(
-                        type='conjecture',
-                        content=problem,
-                        correctness=None,
-                        proof=final_proof,
-                        comment=None
-                    )
-                    return True
-                else:
-                    _, final_proof = self.refine_proof_mas(c, p, verification)
+            verification = self.pessimistic_eval(problem, None, final_proof)
+            if verification is None:
+                # The conjecture is solved, update memory
+                self.update_memory(
+                    type='conjecture',
+                    content=problem,
+                    correctness=None,
+                    proof=final_proof,
+                    comment=None
+                )
+                return True
+            else:
+                return None
 
         return None
 
