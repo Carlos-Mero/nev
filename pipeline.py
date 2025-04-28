@@ -373,7 +373,11 @@ class MathAgentPipeline():
                         )
                         break
                     else:
-                        c, p = self.refine_proof_mas(c, p, verification)
+                        nc, np = self.refine_proof_mas(c, p, verification)
+                        if nc is not None:
+                            c = nc
+                        if np is not None:
+                            p = np
 
         # Examine the final proof
         final_proof = extract_tag_content(raw_exploration, "final_proof")
