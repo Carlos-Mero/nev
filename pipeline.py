@@ -200,7 +200,7 @@ class MathAgentPipeline():
             self.refiner = ExpRefiner(self.proof_model)
         else:
             raise NotImplementedError("Unknown method in MathAgent.")
-        
+
     def pessimistic_eval(self, conjecture: str, judgement: str, proof: str) -> Optional[str]:
         """
         This function evaluates the judgement and proof of the given conjecture.
