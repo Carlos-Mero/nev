@@ -8,6 +8,7 @@ from typing import Union
 import concurrent.futures
 
 from tqdm import tqdm
+import re
 
 def naive_eval_pipeline(
     problem: str,
@@ -199,7 +200,7 @@ class MathAgentPipeline():
             self.refiner = ExpRefiner(self.proof_model)
         else:
             raise NotImplementedError("Unknown method in MathAgent.")
-
+        
     def pessimistic_eval(self, conjecture: str, judgement: str, proof: str) -> Optional[str]:
         """
         This function evaluates the judgement and proof of the given conjecture.
@@ -432,6 +433,45 @@ class MathAgentPipeline():
             json.dump(self.memory, f, ensure_ascii=False, indent=4)
 
         logging.info(f"Saved logs to path {self.log_dir}")
+
+        # convert memory.json to markdown
+        def convert_memory_json_to_md(json_path, md_path) -> None:
+            """
+            This function converts a memory JSON file to a markdown file.
+            Arguments: json_path: The path to the JSON file.
+                    md_path: The path to the markdown file.
+            The output markdown file contains the types, contents, correctnesses, proofs, and comments.
+            """
+            def remove_tagged_text(text: str) -> str:
+                if isinstance(text, str):
+                    return re.sub(r'<.*?>', '', text) # Delete all <> tags
+                return text
+            with open(json_path, "r", encoding="utf-8") as f:
+                samples = json.load(f)
+            with open(md_path, "w", encoding="utf-8") as f:
+                for idx, item in enumerate(samples, start=1):
+                    f.write(f"## Memory {idx}\n\n")
+
+                    f.write("### Type:\n\n")
+                    f.write(f"{remove_tagged_text(item['type'].strip().replace('##', '####'))}\n\n")
+
+                    f.write("### Content:\n\n")
+                    f.write(f"{remove_tagged_text(item['content'].strip().replace('##', '####'))}\n\n")
+
+                    f.write("### Correctness:\n\n")
+                    f.write(f"{remove_tagged_text(item['correctness'].strip().replace('##', '####'))}\n\n")
+
+                    f.write("### Proof:\n\n")
+                    f.write(f"{remove_tagged_text(item['proof'].strip().replace('##', '####'))}\n\n")
+
+                    f.write("### Comment:\n\n")
+                    if item['comment']:
+                        f.write(f"{remove_tagged_text(item['comment'].strip().replace('##', '####'))}\n\n")
+                    else:
+                        f.write("Not provided\n\n")
+
+        convert_memory_json_to_md(memory_path, self.log_dir + '/memory.md')
+        logging.info(f"Converted memory.json to markdown and saved to {self.log_dir}/memory.md")
 
     def __call__(self, problem: str) -> dict:
         """
