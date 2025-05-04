@@ -53,6 +53,11 @@ class AgentBase:
                     
             except Exception as e:
                 logging.warning(f"Attempt {attempt+1} failed with exception: {e}")
+                
+        # If all attempts fail, log the error and raise an exception
+        error_msg = f"All {self.max_retries} attempts failed. Terminating."
+        logging.error(error_msg)
+        raise RuntimeError(error_msg)
 
 class Solver(AgentBase):
     def __init__(self, model: str):
