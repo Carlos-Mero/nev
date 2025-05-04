@@ -424,9 +424,10 @@ class MathAgentPipeline():
             'current_steps': self.current_steps,
             'reviews': self.reviews,
             'refine_iterations': self.refine_iterations,
-            'parallel_solve_iterations': self.parallel_solve_iterations,
-            **self.memory[-1]
+            'parallel_solve_iterations': self.parallel_solve_iterations
         }
+        if self.memory:
+            log_data.update(**self.memory[-1])
         with open(main_log_path, 'w', encoding='utf-8') as f:
             json.dump(log_data, f, ensure_ascii=False, indent=4)
         with open(memory_path, 'w', encoding='utf-8') as f:
