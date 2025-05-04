@@ -458,17 +458,17 @@ class MathAgentPipeline():
                     f.write("### Content:\n\n")
                     f.write(f"{remove_tagged_text(item['content'].strip().replace('##', '####'))}\n\n")
 
-                    f.write("### Correctness:\n\n")
-                    f.write(f"{remove_tagged_text(item['correctness'].strip().replace('##', '####'))}\n\n")
+                    if item['correctness'] is not None:
+                        f.write("### Correctness:\n\n")
+                        f.write(f"{remove_tagged_text(item['correctness'].strip().replace('##', '####'))}\n\n")
 
-                    f.write("### Proof:\n\n")
-                    f.write(f"{remove_tagged_text(item['proof'].strip().replace('##', '####'))}\n\n")
+                    if item['proof'] is not None:
+                        f.write("### Proof:\n\n")
+                        f.write(f"{remove_tagged_text(item['proof'].strip().replace('##', '####'))}\n\n")
 
-                    f.write("### Comment:\n\n")
-                    if item['comment']:
+                    if item['comment'] is not None:
+                        f.write("### Comment:\n\n")
                         f.write(f"{remove_tagged_text(item['comment'].strip().replace('##', '####'))}\n\n")
-                    else:
-                        f.write("Not provided\n\n")
 
         convert_memory_json_to_md(memory_path, self.log_dir + '/memory.md')
         logging.info(f"Converted memory.json to markdown and saved to {self.log_dir}/memory.md")
