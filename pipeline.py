@@ -453,14 +453,14 @@ class MathAgentPipeline():
                     f.write(f"## Memory {idx}\n\n")
 
                     f.write("### Type:\n\n")
-                    f.write(f"{remove_tagged_text(item['type'].strip().replace('##', '####'))}\n\n")
+                    f.write(f"{item['type']}\n\n")
 
                     f.write("### Content:\n\n")
                     f.write(f"{remove_tagged_text(item['content'].strip().replace('##', '####'))}\n\n")
 
                     if item['correctness'] is not None:
                         f.write("### Correctness:\n\n")
-                        f.write(f"{remove_tagged_text(item['correctness'].strip().replace('##', '####'))}\n\n")
+                        f.write(f"{item['correctness']}\n\n")
 
                     if item['proof'] is not None:
                         f.write("### Proof:\n\n")
