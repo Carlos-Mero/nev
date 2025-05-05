@@ -178,7 +178,7 @@ def main():
     )
     parser.add_argument('-t', '--temperature', type=float, default=0.6, help="The argument sets the global temperature of all agents")
     parser.add_argument('--seed', type=int, default=1121, help="The global seed for the whole program")
-    parser.add_argument('--max_tokens', type=int, default=65536, help="The maximum tokens in each api call.")
+    parser.add_argument('--max_tokens', type=int, default=16384, help="The maximum tokens in each api call.")
     parser.add_argument('-p', '--problems', type=str, default='', help="The path to the problems to be solved. It should be a file in json format, which contains a list of problems in natural language")
     parser.add_argument('--debug', default=False, action='store_true', help="Enable debug mode for more information output")
     parser.add_argument('--save_path', type=str, default=None, help="The path to save proof and judge results in the process")

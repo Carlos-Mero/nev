@@ -14,7 +14,7 @@ class AgentBase:
     temperature = 0.6
     seed = 1121
     max_retries = 7
-    max_tokens = 65536
+    max_tokens = 16384
     debug = False
 
     def __init__(self, model: str):
