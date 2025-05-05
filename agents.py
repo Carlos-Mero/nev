@@ -14,6 +14,7 @@ class AgentBase:
     temperature = 0.6
     seed = 1121
     max_retries = 7
+    max_tokens = 65536
     debug = False
 
     def __init__(self, model: str):
@@ -33,6 +34,7 @@ class AgentBase:
                     'temperature': self.temperature,
                     'timeout': 300000,
                     'messages': prompt,
+                    'max_tokens': self.max_tokens,
                     'stream': True
                 }
                 if self.debug:
