@@ -286,12 +286,12 @@ class Explorer(AgentBase):
              '\n'
              f'<problem>{problem}</problem>\n'
              '\n'
-             'However this is a quite difficult problem that can not be directly solved. You need to explore different approaches or directions that might help with our final goal. You can include one or more interesting findings in your explorations as conjectures in your response. Each of these conjectures must include complete definitions and background so that they can be viewed as standalone statements or lemmas. You should wrap them inside two tags of xml style: <conjecture></conjecture>, and each of them should be equiped with a complete and rigorous proof. The proof should be wrapped in <proof></proof> tags directly followed by the conjecture. More accurately the format should look like:\n'
+             'However this is a quite difficult problem that can not be directly solved. You need to explore different approaches or directions that might help with our final goal. You can include one or more interesting findings in your explorations as conjectures in your response. Each of these conjectures must include complete definitions and background so that they can be viewed as standalone statements or lemmas. You should wrap them inside two tags of xml style: <conjecture></conjecture>, and each of them should be equiped with a detailed, complete and rigorous proof. The proof should be wrapped in <proof></proof> tags directly followed by the conjecture. More accurately the format should look like:\n'
              '\n'
              '<conjecture>Your new findings here</conjecture>\n'
              '<proof>Your proof of the conjecture above</proof>\n'
              '\n'
-             'These conjectures will then be verified and collected as the basis for future explorations. Moreover, when you think the time is right that you are able to prove the original problem, you can simply state your proof inside <final_proof></final_proof>. Do not include these components if you are not sure about the final proof.'
+             'These conjectures will then be verified and collected as the basis for future explorations. Moreover, when you think the time is right that you are able to prove the original problem, you can simply state your proof inside <final_proof></final_proof>. Do not include these components if you are not sure about the final proof. Remember that the final proof should be a complete proof that do not depend on any other unsolved conjectures.'
              + context_instruct
              }
         ]
@@ -301,7 +301,7 @@ class ExpReviewer(AgentBase):
         super().__init__(model)
     def format_prompt(self, conjecture: str, proof: str, context: list[dict]):
         self.seed += 1
-        context_instruct = 'Here is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
+        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -314,10 +314,7 @@ class ExpReviewer(AgentBase):
              '\n'
              '### Proof\n'
              '\n'
-             f'{proof}\n'
-             '\n'
-             '### Context and History Explorations\n'
-             '\n'
+             f'{proof}'
              + context_instruct
             }
         ]
