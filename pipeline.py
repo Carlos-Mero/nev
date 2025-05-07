@@ -391,7 +391,7 @@ class MathAgentPipeline():
                 self.update_memory(
                     type='conjecture',
                     content=problem,
-                    correctness=None,
+                    correctness=True,
                     proof=final_proof,
                     comment=None
                 )
