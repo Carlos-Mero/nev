@@ -1,6 +1,7 @@
 import openai
 import json
 import logging
+import re
 
 with open('.apiconfig.json', 'r', encoding='utf-8') as file:
     apiconfig = json.load(file)
@@ -173,14 +174,13 @@ def format_context_element(e: dict) -> str:
         "comment": "comments on this element"
     }
     """
-    correctness = f'**correctness**: **{e['correctness']}**' if 'correctness' in e.keys() else ''
+    correctness = f'**correctness**: **{e['correctness']}**' if 'correctness' in e.keys() and e['correctness'] is not None else ''
     return (
-        # f'<{"lemma" if e['type'] == "conjecture" else "context"}>\n'
-        f'**content**: {e['content']}\n'
+        f'<{"lemma" if e['type'] == "conjecture" else "context"}>\n'
+        f'**content**: {re.sub(r'<.*?>', '', e['content'])}\n'
         + correctness +
-        # f'**correctness**: **{e['correctness']}**\n'
         # f'**comment**: {e['comment']}\n' if e['comment'] is not None else ''
-        # f'</{e['type']}>'
+        f'</{"lemma" if e['type'] == "conjecture" else "context"}>'
     )
 
 class Planner(AgentBase):
