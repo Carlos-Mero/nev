@@ -175,7 +175,7 @@ def format_context_element(e: dict) -> str:
     """
     correctness = f'**correctness**: **{e['correctness']}**' if 'correctness' in e.keys() else ''
     return (
-        f'<{e['type']}>\n'
+        f'<{"lemma" if e['type'] == "conjecture" else "context"}>\n'
         f'**content**: {e['content']}\n'
         + correctness +
         # f'**correctness**: **{e['correctness']}**\n'
@@ -197,7 +197,7 @@ class Planner(AgentBase):
              '\n'
              f'<problem>{problem}</problem>\n'
              '\n'
-             'Currently there is no known solution to this problem, and it might require a lot of hard work to obtain an answer to it. You need to carefully analyze any contents relevant to this problem and propose a new conjecture that might help solve our final goal. This conjecture will then be analyzed and verified by other agents. You need to wrap your conjecture inside two tags <conjecture></conjecture>. When you think the time is right, you can directly present the original problem as your conjecture. The solver will then try to finally solve it for us.'
+             'Currently there is no known solution to this problem, and it might require a lot of hard work to obtain an answer to it. You need to carefully analyze any contents relevant to this problem and propose a new conjecture that might help solve our final goal. This conjecture will then be analyzed and verified by other agents. You need to wrap your conjecture inside two tags <conjecture></conjecture>. When you think the time is right, you can directly present the original problem as your conjecture. The solver will then try to finally solve it for us. Note that the final proof should be a complete proof that do not depend on any other unsolved conjectures.'
              + context_instruct
              }
         ]
