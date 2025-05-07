@@ -63,6 +63,11 @@ def remove_tag_content(text, tag):
     cleaned_text = re.sub(fr'<{tag}>.*?</{tag}>', '', text, flags=re.DOTALL)
     return cleaned_text
 
+def remove_all_tag_content(text: str) -> str:
+    if isinstance(text, str):
+        return re.sub(r'<.*?>', '', text) # Delete all <> tags
+    return text
+
 def convert_json_to_md(json_path, md_path) -> None:
     """
     This function converts a JSON file to a markdown file.
@@ -105,6 +110,85 @@ def convert_json_to_md(json_path, md_path) -> None:
             f.write("---\n\n")
 
     print(f"Converted {len(samples)} problems to markdown and saved to {md_path}")
+
+def convert_memory_json_to_md(json_path, md_path) -> None:
+    """
+    This function converts a memory JSON file to a markdown file.
+    Arguments: json_path: The path to the JSON file.
+            md_path: The path to the markdown file.
+    The output markdown file contains the types, contents, correctnesses, proofs, and comments.
+    """
+    with open(json_path, "r", encoding="utf-8") as f:
+        samples = json.load(f)
+    with open(md_path, "w", encoding="utf-8") as f:
+        for idx, item in enumerate(samples, start=1):
+            f.write(f"## Memory {idx}\n\n")
+
+            f.write("### Type:\n\n")
+            f.write(f"{item['type']}\n\n")
+
+            f.write("### Content:\n\n")
+            f.write(f"{remove_all_tag_content(item['content'].strip().replace('##', '####'))}\n\n")
+
+            if item['correctness'] is not None:
+                f.write("### Correctness:\n\n")
+                f.write(f"{item['correctness']}\n\n")
+
+            if item['proof'] is not None:
+                f.write("### Proof:\n\n")
+                f.write(f"{remove_all_tag_content(item['proof'].strip().replace('##', '####'))}\n\n")
+
+            if item['comment'] is not None:
+                f.write("### Comment:\n\n")
+                f.write(f"{remove_all_tag_content(item['comment'].strip().replace('##', '####'))}\n\n")
+
+def convert_memory_json_to_latex(json_path, latex_path) -> None:
+    """
+    This function converts a memory json samples into compilable latex file for preview.
+    Arguments: json_path: The path to the JSON file.
+            latex_path: The path to the latex file.
+    """
+    latex_header = r"""
+\documentclass[12pt]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}    % For UTF-8 encoding
+\usepackage{geometry}          % To adjust margins
+\usepackage{amsmath}           % For math environments
+\usepackage{amsthm}            % For lemma and proof environments
+\usepackage{amssymb}           % For math symbols
+\usepackage{graphicx}          % To include images
+\usepackage{hyperref}          % For hyperlinks
+
+% --- Page Settings ---
+\geometry{a4paper, margin=1in}
+\newtheorem{lemma}{Lemma}
+
+% --- Document Starts ---
+\begin{document}
+
+\title{Explore Trajectory of MathAgent}
+\author{MathAgent}
+\date{\today}
+
+\maketitle
+
+"""
+    with open(json_path, "r", encoding="utf-8") as f:
+        samples = json.load(f)
+    with open(latex_path, "w", encoding="utf-8") as f:
+        f.write(latex_header)
+        for idx, item in enumerate(samples, start=1):
+            for key, value in item.items():
+                value = remove_all_tag_content(value)
+                if key == "content":
+                    f.write(f'\\begin{{lemma}}\n{value}\\end{{lemma}}\n\n')
+                elif key =="proof":
+                    f.write(f'\\begin{{proof}}\n{value}\\end{{proof}}\n\n')
+                # TODO! we need more formatting for context elements.
+                else:
+                    f.write(f'\\textbf{{{key}}}: {value}\n')
+        f.write(r'\end{document}')
 
 def view_samples(args):
     with open(args.view, "r", encoding="utf-8") as file:
