@@ -175,12 +175,12 @@ def format_context_element(e: dict) -> str:
     """
     correctness = f'**correctness**: **{e['correctness']}**' if 'correctness' in e.keys() else ''
     return (
-        f'<{"lemma" if e['type'] == "conjecture" else "context"}>\n'
+        # f'<{"lemma" if e['type'] == "conjecture" else "context"}>\n'
         f'**content**: {e['content']}\n'
         + correctness +
         # f'**correctness**: **{e['correctness']}**\n'
         # f'**comment**: {e['comment']}\n' if e['comment'] is not None else ''
-        f'</{e['type']}>'
+        # f'</{e['type']}>'
     )
 
 class Planner(AgentBase):
