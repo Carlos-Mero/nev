@@ -9,6 +9,41 @@ from utils import convert_json_to_md, view_samples
 from agents import AgentBase, Solver, VanillaJudger, Reviewer, DiscussionJudger, ProofRefiner
 from pipeline import naive_eval_pipeline, pessimistic_eval_pipeline, discussion_eval_pipeline, naive_process_pipeline, pessimistic_process_pipeline, pessimistic_refine_pipeline, discussion_process_pipeline, MathAgentPipeline
 
+def run_mathagent(problems, args):
+    # MathAgent does not require explicit parallel sampling and logging utils
+    # It will immediately return after completed ma sampling loop
+    logging.info(f"Running MathAgent loop with proof_model: {args.proof_model}")
+    logging.info(f"using pessimistic verification with eval_model: {args.eval_model}")
+    logging.info(f"doing chores with reform_model: {args.reform_model}")
+    logging.info("Some key hyperparameters are as follows:")
+    logging.info(f"Max exploration steps: {args.steps}")
+    logging.info(f"Num reviews per proof: {args.reviews}")
+    logging.info(f"Max refine iterations: {args.iterations}")
+    logging.info(f"Max solver parallel for a single conjecture: {args.solver_parallel}")
+
+    agent = MathAgentPipeline(
+        method=args.method,
+        proof_model=args.proof_model,
+        eval_model=args.eval_model,
+        reform_model=args.reform_model,
+        max_steps=args.steps,
+        reviews=args.reviews,
+        refine_iterations=args.iterations,
+        parallel_solve_iterations=args.solver_parallel,
+        log_dir=args.log_dir,
+        log_per_steps=args.log_per_steps,
+    )
+
+    if args.resume is not None:
+        logging.info(f"Resuming from existing explore memory: {args.resume}")
+        agent.get_context(args.resume + '/memory.json')
+
+    for p in tqdm(problems, desc="Problems"):
+        if isinstance(p, dict):
+            p = p['problem']
+        logging.info(f"Dealing with problem: {p}")
+        agent(p)
+
 def run(args):
     with open(args.problems, 'r', encoding='utf-8') as problems_file:
         problems = json.load(problems_file)
@@ -17,36 +52,7 @@ def run(args):
     logs = []
 
     if args.method == "ma" or args.method == "mas":
-        # MathAgent does not require explicit parallel sampling and logging utils
-        # It will immediately return after completed ma sampling loop
-        logging.info(f"Running MathAgent loop with proof_model: {args.proof_model}")
-        logging.info(f"using pessimistic verification with eval_model: {args.eval_model}")
-        logging.info(f"doing chores with reform_model: {args.reform_model}")
-        logging.info("Some key hyperparameters are as follows:")
-        logging.info(f"Max exploration steps: {args.steps}")
-        logging.info(f"Num reviews per proof: {args.reviews}")
-        logging.info(f"Max refine iterations: {args.iterations}")
-        logging.info(f"Max solver parallel for a single conjecture: {args.solver_parallel}")
-
-        agent = MathAgentPipeline(
-            method=args.method,
-            proof_model=args.proof_model,
-            eval_model=args.eval_model,
-            reform_model=args.reform_model,
-            max_steps=args.steps,
-            reviews=args.reviews,
-            refine_iterations=args.iterations,
-            parallel_solve_iterations=args.solver_parallel,
-            log_dir=args.log_dir,
-            log_per_steps=args.log_per_steps,
-        )
-
-        for p in tqdm(problems, desc="Problems"):
-            if isinstance(p, dict):
-                p = p['problem']
-            logging.info(f"Dealing with problem: {p}")
-            agent(p)
-
+        run_mathagent(problems, args)
         return
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
@@ -205,6 +211,7 @@ def main():
     parser.add_argument('--solver_parallel', type=int, default=1, help="The maximum parallel solve process for a single conjecture")
     parser.add_argument('--log_dir', type=str, default="samples", help="The target log directory for math agent")
     parser.add_argument('--log_per_steps', type=int, default=10, help="Save logs in MathAgent after these steps")
+    parser.add_argument('--resume', type=str, default=None, help="Resume from existing exploration memory. Pass the previous log_dir to continue exploring.")
 
     args = parser.parse_args()
 

@@ -401,12 +401,14 @@ class MathAgentPipeline():
 
         return None
 
-    def init_context(self, problem: str):
+    def get_context(self, context_path: str):
         """
-        This function will initialize the solver's memory based on the problem statement.
-        TODO
+        This function will initialize the memory of this agent from existing path.
+        We need to pass the path of the json file containing history explorations or newly constructed context
         """
-        pass
+        with open(context_path, "r", encoding="utf-8") as f:
+            memory = json.load(f)
+            self.memory += memory
 
     def save_logs(self, problem: str, correctness: Optional[bool]):
         os.makedirs(self.log_dir, exist_ok=True)
