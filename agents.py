@@ -1,7 +1,12 @@
 import openai
 import json
 import logging
+from typing import Union
 import re
+import gc
+
+from tqdm import tqdm
+import sglang as sgl
 
 with open('.apiconfig.json', 'r', encoding='utf-8') as file:
     apiconfig = json.load(file)
@@ -12,40 +17,84 @@ client = openai.OpenAI(
 )
 
 class AgentBase:
+    """
+    The base class for all agents instance
+    Capatible with both remote API calls and local inference with SGL
+    """
     temperature = 0.6
     seed = 1121
     max_retries = 7
     max_tokens = 16384
     debug = False
 
+    sgl_model  = None
+    llm = None
+
+    remote_models = [
+        "deepseek-r1",
+        "deepseek-v3",
+        "gpt-4o",
+        "o3-mini",
+        "o4-mini",
+        "o1",
+        "o3"
+    ]
+
+
     def __init__(self, model: str):
         self.model = model
+        self.remote = True if model in AgentBase.remote_models else False
+        if not self.remote:
+            self.sampling_params = {
+                "max_new_tokens": AgentBase.max_tokens,
+                "skip_special_tokens": False,
+                "temperature": AgentBase.temperature,
+                "top_p": 0.95
+            }
 
     def format_prompt(self):
         """
         This method should be overrided by subclasses for specific useage
         """
         raise NotImplementedError("format_prompt should be implemented by subclasses of agent")
-    def __call__(self, *args):
-        prompt = self.format_prompt(*args)
+
+    def call_from_local_SGL_engine(self, prompt: Union[str, list[str]]) -> list[str]:
+        """
+        Warning, currently we only allow one SGL Engine at the same time
+        We will shut down the previous engine and construct a new one if needed.
+        """
+        if self.model != AgentBase.sgl_model:
+            if AgentBase.llm is not None:
+                AgentBase.llm.shutdown
+                del AgentBase.llm
+                gc.collect()
+            AgentBase.llm = sgl.Engine(model=self.model)
+            AgentBase.sgl_model = self.model
+        outputs = AgentBase.llm.generate(prompt, self.sampling_params)
+        if isinstance(prompt, str):
+            return outputs['text']
+        else:
+            return [output['text'] for output in outputs]
+
+    def call_from_remote_API(self, prompt: str):
         for attempt in range(self.max_retries):
             try:
                 client_params = {
                     'model': self.model,
-                    'temperature': self.temperature,
+                    'temperature': AgentBase.temperature,
                     'timeout': 300000,
                     'messages': prompt,
-                    'max_tokens': self.max_tokens,
+                    'max_tokens': AgentBase.max_tokens,
                     'stream': True
                 }
-                if self.debug:
-                    client_params['seed'] = self.seed
+                if AgentBase.debug:
+                    client_params['seed'] = AgentBase.seed
                 stream = client.chat.completions.create(**client_params)
                 response_content = ""
                 for chunk in stream:
                     chunk_content = chunk.choices[0].delta.content
                     if chunk_content is not None:
-                        if self.debug:
+                        if AgentBase.debug:
                             print(chunk_content, end="", flush=True)
                         response_content += chunk_content
                 
@@ -58,9 +107,23 @@ class AgentBase:
                 logging.warning(f"Attempt {attempt+1} failed with exception: {e}")
                 
         # If all attempts fail, log the error and raise an exception
-        error_msg = f"All {self.max_retries} attempts failed. Terminating."
+        error_msg = f"All {AgentBase.max_retries} attempts failed. Terminating."
         logging.error(error_msg)
         raise RuntimeError(error_msg)
+
+    def batch_generate(self, args_list: list):
+        prompts = [self.format_prompt(*args) for args in tqdm(args_list)]
+        if self.remote:
+            raise RuntimeError("Batch generate API is only accessible for local LLM engine")
+        else:
+            self.call_from_local_SGL_engine(prompts)
+
+    def __call__(self, *args):
+        prompt = self.format_prompt(*args)
+        if self.remote:
+            return self.call_from_remote_API(prompt)
+        else:
+            return self.call_from_local_SGL_engine(prompt)
 
 class Solver(AgentBase):
     def __init__(self, model: str):
