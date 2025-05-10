@@ -88,8 +88,8 @@ def convert_json_to_md(json_path, md_path) -> None:
             f.write("### Proof:\n\n")
             f.write(f"{item['proof'].strip().replace('##', '####')}\n\n")
 
-            f.write("### Evaluation by Judger:\n\n")
-            f.write(f"{item['evaluation'].strip().replace('##', '####')}\n\n")
+            f.write("### Review by Judger:\n\n")
+            f.write(f"{item['review'].strip().replace('##', '####')}\n\n")
 
             f.write("### Judger judgement:\n\n")
             f.write("Correct\n\n" if item['judgement'] else "Incorrect\n\n")

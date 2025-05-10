@@ -4,9 +4,11 @@ import logging
 from typing import Union
 import re
 import gc
+import concurrent.futures
 
 from tqdm import tqdm
 import sglang as sgl
+from transformers import AutoTokenizer
 
 with open('.apiconfig.json', 'r', encoding='utf-8') as file:
     apiconfig = json.load(file)
@@ -28,6 +30,7 @@ class AgentBase:
     debug = False
 
     sgl_model  = None
+    tokenizer = None
     llm = None
 
     remote_models = [
@@ -40,7 +43,6 @@ class AgentBase:
         "o3"
     ]
 
-
     def __init__(self, model: str):
         self.model = model
         self.remote = True if model in AgentBase.remote_models else False
@@ -51,6 +53,14 @@ class AgentBase:
                 "temperature": AgentBase.temperature,
                 "top_p": 0.95
             }
+            if self.model != AgentBase.sgl_model:
+                if AgentBase.llm is not None:
+                    AgentBase.llm.shutdown()
+                    del AgentBase.llm
+                    gc.collect()
+                AgentBase.tokenizer = AutoTokenizer.from_pretrained(self.model, trust_remote_code=True)
+                AgentBase.llm = sgl.Engine(model_path=self.model)
+                AgentBase.sgl_model = self.model
 
     def format_prompt(self):
         """
@@ -63,17 +73,17 @@ class AgentBase:
         Warning, currently we only allow one SGL Engine at the same time
         We will shut down the previous engine and construct a new one if needed.
         """
-        if self.model != AgentBase.sgl_model:
-            if AgentBase.llm is not None:
-                AgentBase.llm.shutdown
-                del AgentBase.llm
-                gc.collect()
-            AgentBase.llm = sgl.Engine(model=self.model)
-            AgentBase.sgl_model = self.model
-        outputs = AgentBase.llm.generate(prompt, self.sampling_params)
         if isinstance(prompt, str):
+            formated_prompt = AgentBase.tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True)
+            outputs = AgentBase.llm.generate(formated_prompt, self.sampling_params)
             return outputs['text']
         else:
+            formated_prompt = [AgentBase.tokenizer.apply_chat_template(p, tokenize=False, add_generation_prompt=True) for p in prompt]
+            pbar = tqdm(total=len(formated_prompt), desc="Inference with SGL")
+            logging.info("Running batch inference on local GPU. It may take a while and the progress will not be updated. Please be patient.")
+            outputs = AgentBase.llm.generate(formated_prompt, self.sampling_params)
+            pbar.update(len(formated_prompt))
+            pbar.close()
             return [output['text'] for output in outputs]
 
     def call_from_remote_API(self, prompt: str):
@@ -111,12 +121,18 @@ class AgentBase:
         logging.error(error_msg)
         raise RuntimeError(error_msg)
 
-    def batch_generate(self, args_list: list):
-        prompts = [self.format_prompt(*args) for args in tqdm(args_list)]
+    def batch_generate(self, args_list: list, workers: int = 1):
+        prompts = [self.format_prompt(*args) for args in tqdm(args_list, desc="Processing Prompts")]
         if self.remote:
-            raise RuntimeError("Batch generate API is only accessible for local LLM engine")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                results = list(tqdm(
+                    executor.map(self.call_from_remote_API, prompts),
+                    total=len(prompts),
+                    desc="Remote Calls"
+                ))
+                return results
         else:
-            self.call_from_local_SGL_engine(prompts)
+            return self.call_from_local_SGL_engine(prompts)
 
     def __call__(self, *args):
         prompt = self.format_prompt(*args)
@@ -173,33 +189,6 @@ class Reviewer(AgentBase):
              f'{proof}\n'
              'You need to explain your rationales and decide whether this candidate can be accepted as a valid proof of this problem. State your judgement inside $\\boxed{}$ as $\\boxed{true}$ or $\\boxed{false}$ at the end of your response.\n'
              }]
-        return prompt
-
-class DiscussionJudger(AgentBase):
-    def __init__(self, model: str):
-        super().__init__(model)
-    def format_prompt(self, problem: str, proof: str, advices: list[str]):
-        advices = ""
-        for i, c in enumerate(advices):
-            advices += f"#### Review {i+1}\n\n{c}\n"
-        prompt = [
-            {'role': 'user', 'content': 
-             "You are a judger that needs to carefully review the candidate proof of this math problem. You are given some advices from other reviewers, and you need to determine whether we can accept this candidate as a valid proof of this problem based on them.\n"
-             "\n"
-             "### Problem\n"
-             "\n"
-             f"{problem}\n"
-             "\n"
-             "### Candidate Proof\n"
-             "\n"
-             f"{proof}\n"
-             "\n"
-             "### Reviews\n"
-             "\n"
-             f"{advices}\n"
-             "State your judgement as $\\boxed{true}$ or $\\boxed{false}$ at the end of your response."
-             }
-        ]
         return prompt
 
 class ProofRefiner(AgentBase):

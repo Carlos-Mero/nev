@@ -58,22 +58,23 @@ Prepare a JSON file (`problems.json`) containing a list of problem statements:
 Run the default (naive) pipeline:
 ```bash
 python nev.py \
-  --method naive \
   --proof_model deepseek-r1 \
   --eval_model deepseek-r1 \
   -p problems.json \
   --save_path results.json \
-  -w 4
+  --workers 4
 ```
 
 ### 2. Pessimistic Voting or Refinement
 
+We can separately enable pessimistic verification and refinement process separately by passing the commandline argument `--reviews` and `--iterations`. You can also pass `-w` or `--workers` argument to enable multithreading sampling in API calls.
+
 ```bash
 # Pessimistic voting (collect N reviews before judgment)
-python nev.py --method pessimistic_vote --reviews 3 -p problems.json --save_path vote_results.json
+python nev.py --reviews 3 -p problems.json --save_path vote_results.json
 
 # Pessimistic refine (iterative proof improvement)
-python nev.py --method pessimistic_refine --reviews 3 --iterations 2 -p problems.json --save_path refine_results.json
+python nev.py --reviews 3 --iterations 2 -p problems.json --save_path refine_results.json
 ```
 
 The outputs contain:

@@ -1,5 +1,5 @@
 from utils import extract_boxed, remove_think_tags, find_box, extract_tag_content, extract_all_tag_content, convert_memory_json_to_md, convert_memory_json_to_latex
-from agents import Solver, VanillaJudger, Reviewer, DiscussionJudger, ProofRefiner, Planner, SolverWithContext, VerifierWithContext, RefinerWithContext, Explorer, ExpReviewer, ExpRefiner
+from agents import Solver, Reviewer, ProofRefiner, Planner, SolverWithContext, VerifierWithContext, RefinerWithContext, Explorer, ExpReviewer, ExpRefiner
 from typing import Optional
 import os
 import json
@@ -8,152 +8,82 @@ from typing import Union
 import concurrent.futures
 
 from tqdm import tqdm
-import re
 
-def naive_eval_pipeline(
-    problem: str,
-    proof: str,
-    judger: VanillaJudger,
-    manual_judgement: bool = None,
-    ):
-    judge_process = judger(problem, proof)
-    result = True if extract_boxed(judge_process) == 'true' else False
-    return {
-        'problem': problem,
-        'proof': proof,
-        'evaluation': judge_process,
-        'judgement': result,
-        'manual_judgement': manual_judgement
-    }
+def peval_pipeline(
+    problems: Union[list[str], list[dict]],
+    proofs: list[str],
+    reviewer: str,
+    reviews: int = 1,
+    workers: int = 1
+) -> dict:
+    if isinstance(problems[0], dict):
+        problems = [p['problem'] for p in problems]
+    evaluate_prompts = [[pr, pf] for pr, pf in zip(problems, proofs) for _ in range(reviews)]
+    reviewer_agent = Reviewer(reviewer)
+    raw_reviews = reviewer_agent.batch_generate(evaluate_prompts, workers=workers)
+    results = []
+    for i in range(len(problems)):
+        solved = True
+        for j in range(reviews):
+            if find_box(raw_reviews[i * reviews + j]) == "false":
+                results.append({
+                    'problem': problems[i],
+                    'proof': proofs[i],
+                    'review': remove_think_tags(raw_reviews[i * reviews + j]),
+                    'judgement': False
+                })
+                solved = False
+                break
+            else:
+                continue
+        if solved:
+            results.append({
+                'problem': problems[i],
+                'proof': proofs[i],
+                'review': remove_think_tags(raw_reviews[i * reviews]),
+                'judgement': True
+            })
+    return results
 
-def pessimistic_eval_pipeline(
-    problem: str,
-    proof: str,
-    reviewer: Reviewer,
-    reviews: int,
-    manual_judgement: bool = None,
-):
-    result = True
-    review = ""
-    for i in range(reviews):
-        review = reviewer(problem, proof)
-        review_res = False if find_box(review) == "false" else True
-        result = result and review_res
-        if not result:
-            break
-    return {
-        'problem': problem,
-        'proof': proof,
-        'evaluation': review,
-        'judgement': result,
-        'manual_judgement': manual_judgement
-    }
-
-def discussion_eval_pipeline(
-    problem: str,
-    proof: str,
-    reviewer: Reviewer,
-    reviews: int,
-    judger: DiscussionJudger,
-    manual_judgement: bool = None,
-) -> dict[str, any]:
-    advices = []
-    for i in range(reviews):
-        advice = reviewer(problem, proof)
-        advices.append(advice)
-    judge_process = judger(problem, proof, advices)
-    result = True if extract_boxed(judge_process) == 'true' else False
-    return {
-        'problem': problem,
-        'proof': proof,
-        'reviews': advices,
-        'evaluation': judge_process,
-        'judgement': result,
-        'manual_judgement': manual_judgement
-    }
-
-def naive_process_pipeline(
-    problem: Union[str, dict],
-    solver: Solver,
-    judger: VanillaJudger,
-) -> dict[str, any]:
+def prefine_pipeline(
+    problems: Union[list[str], list[dict]],
+    solver: str,
+    reviewer: str,
+    refiner: str,
+    reviews: int = 1,
+    iterations: int = 0,
+    workers: int = 1
+) -> list[dict]:
     """
-    Helper function that:
-    1. Calls solver to get the proof.
-    2. Calls judger to evaluate the proof.
-    3. Extracts the 'boxed' result from judger's output.
-    4. Returns a dictionary with all relevant logs.
-    """
-    if isinstance(problem, dict):
-        problem = problem['problem']
-    proof = remove_think_tags(solver(problem))
-    return naive_eval_pipeline(problem, proof, judger)
-
-def pessimistic_process_pipeline(
-    problem: Union[str, dict],
-    solver: Solver,
-    reviewer: Reviewer,
-    reviews: int,
-) -> dict[str, any]:
-    """
-    Helper function that:
-    1. Calls solver to get the proof.
-    2. Calls the reviewers to provide different advices to this proof.
-    3. The answer is marked false if any one of the reviewers reports false.
-    4. Extracts the 'boxed' result from judger's output.
-    5. Returns a dictionary with all relevant logs.
-    """
-    if isinstance(problem, dict):
-        problem = problem['problem']
-    proof = remove_think_tags(solver(problem))
-    return pessimistic_eval_pipeline(problem, proof, reviewer, reviews)
-
-def pessimistic_refine_pipeline(
-    problem: Union[str, dict],
-    solver: Solver,
-    reviewer: Reviewer,
-    reviews: int,
-    refiner: ProofRefiner,
-    iterations: int,
-) -> dict[str, any]:
-    """
-    Helper function that:
+    This is the batched prefine pipeline.
+    You need to pass a list of problems to this function and it will return a list of dictionaries containing results.
+    It will:
     1. Calls solver to get the proof.
     2. Iteratively evaluate this proof with pessimistic_vote and refines this proof.
     5. Returns a dictionary with all relevant logs.
     """
-    if isinstance(problem, dict):
-        problem = problem['problem']
-    proof = remove_think_tags(solver(problem))
-    result = {}
+    if isinstance(problems[0], dict):
+        problems = [p['problem'] for p in problems]
+    solver_arguments = [[p] for p in problems]
+    solver_agent = Solver(solver)
+    raw_solutions = solver_agent.batch_generate(solver_arguments, workers=workers)
+    proofs = [remove_think_tags(s) for s in raw_solutions]
+    results = []
+
+    results = peval_pipeline(problems, proofs, reviewer, reviews, workers)
+    # refining process if needed
     for _ in range(iterations):
-        result = pessimistic_eval_pipeline(problem, proof, reviewer, reviews)
-        if result['judgement']:
-            break
-        else:
-            proof = extract_tag_content(remove_think_tags(refiner(problem, proof, result['evaluation'])), 'proof')
-    return result
+        solved_results = [r for r in results if r['judgement']]
+        remaining_results = [r for r in results if not r['judgement']]
+        refine_arguments = [[r['problem'], r['proof'], r['review']] for r in remaining_results]
+        refiner_agent = ProofRefiner(refiner)
+        raw_refined_proofs = refiner_agent.batch_generate(refine_arguments, workers=workers)
+        refined_proofs = [extract_tag_content(remove_think_tags(rr), 'proof') for rr in raw_refined_proofs]
+        remaining_problems = [r['problem'] for r in remaining_results]
+        refined_results = peval_pipeline(remaining_problems, refined_proofs, reviewer, reviews, workers)
+        results = solved_results + refined_results
 
-def discussion_process_pipeline(
-    problem: Union[str, dict],
-    solver: Solver,
-    reviewer: Reviewer,
-    reviews: int,
-    judger: DiscussionJudger,
-) -> dict[str, any]:
-    """
-    Helper function that:
-    1. Calls solver to get the proof.
-    2. Calls the reviewers to provide different advices to this proof.
-    3. Calls judger to evaluate the proof based on these advices.
-    4. Extracts the 'boxed' result from judger's output.
-    5. Returns a dictionary with all relevant logs.
-    """
-    if isinstance(problem, dict):
-        problem = problem['problem']
-    proof = remove_think_tags(solver(problem))
-    return discussion_eval_pipeline(problem, proof, reviewer, reviews, judger)
-
+    return results
 
 class MathAgentPipeline():
     """
