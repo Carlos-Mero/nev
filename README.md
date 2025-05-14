@@ -123,7 +123,7 @@ We also supports resuming exploration from existing logs and manually provide so
 ]
 ```
 
-The context should be a list of dictionaries in json, where two elements are strictly required, `type` and `content`. You can add more elements in each context if you wish, they will appear in the final log but will not acturally affect the behaviour of the agent pipeline.
+The context should be a list of dictionaries in json, where two elements are strictly required, `type` and `content`. You can add more elements in each context if you wish, they will appear in the final log but will not acturally affect the behaviour of the agent pipeline. You can directly pass the argument `--context <path_to_context_file>` to add manual context for the agent.
 
 ### 4. Re-evaluate Annotated Dataset
 
