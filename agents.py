@@ -102,6 +102,8 @@ class AgentBase:
                 stream = client.chat.completions.create(**client_params)
                 response_content = ""
                 for chunk in stream:
+                    if len(chunk.choices) == 0:
+                        continue
                     chunk_content = chunk.choices[0].delta.content
                     if chunk_content is not None:
                         if AgentBase.debug:
