@@ -254,7 +254,7 @@ class MathAgentPipeline():
                     solved = True
                     # The conjecture is solved, update memory
                     self.update_memory(
-                        type='conjecture',
+                        type='lemma',
                         content=conjecture,
                         correctness=judgement,
                         proof=proof,
@@ -296,7 +296,7 @@ class MathAgentPipeline():
                     if verification is None:
                         # The conjecture is solved, update memory
                         self.update_memory(
-                            type='conjecture',
+                            type='lemma',
                             content=c,
                             correctness=True,
                             proof=p,
@@ -319,7 +319,7 @@ class MathAgentPipeline():
             if verification is None:
                 # The conjecture is solved, update memory
                 self.update_memory(
-                    type='conjecture',
+                    type='theorem',
                     content=problem,
                     correctness=True,
                     proof=final_proof,

@@ -219,7 +219,7 @@ def format_context_element(e: dict) -> str:
     Each element in memory block should be in the following format (expressed as json)
 
     {
-        "type": "conjecture | context",
+        "type": "conjecture | context | etc",
         "content": "natural language statement of this element",
         "correctness": "true | false | unknown", # the correctness of retrieved context will always be true
         "proof": "proof of this conjecture, not included in formatted string but is useful as well",
@@ -228,11 +228,11 @@ def format_context_element(e: dict) -> str:
     """
     correctness = f'**correctness**: **{e['correctness']}**' if 'correctness' in e.keys() and e['correctness'] is not None else ''
     return (
-        f'<{"lemma" if e['type'] == "conjecture" else "context"}>\n'
+        f'<{e['type']}>\n'
         f'**content**: {re.sub(r'<.*?>', '', e['content'])}\n'
         + correctness +
         # f'**comment**: {e['comment']}\n' if e['comment'] is not None else ''
-        f'</{"lemma" if e['type'] == "conjecture" else "context"}>'
+        f'</{e['type']}>'
     )
 
 class Planner(AgentBase):

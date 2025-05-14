@@ -104,6 +104,27 @@ python nev.py \
 
 Logs will be written under the `samples/` directory (or your chosen `--log_dir`), containing JSON files for each step. After sampling completes, the final proofs and judgements are saved to `ma_results.json`.
 
+We also supports resuming exploration from existing logs and manually provide some context or hint for the agent. You can additionally pass this argument `--resume <path_to_logdir>` to MathAgent pipeline to enable resuming. The manually made context should be in the same format as `memory.json`, here is an example when working with homogenization problems.
+
+```json
+[
+  {
+    "type": "assumption",
+    "content": "1. \\(\\Omega\\) is a bounded open domain with a connected Lipschitz boundary \\(\\partial\\Omega\\) 2. \\(D\\) is an open domain with a finite number of connected components, each having a Lipschitz boundary \\(\\partial D\\).  3. \\(\\Omega\\setminus D\\) is connected and has a Lipschitz boundary \\(\\partial\\Omega\\cup\\partial D\\).  The connected components of \\(D\\) are denoted as \\(D_{i}\\), \\(i=1,\\ldots,N\\), where \\(N\\) is finite."
+  },
+  {
+    "type": "hint",
+    "content": "You can use the two-scale expansion method to get the cell problem and homogenized equation to solve this problem."
+  },
+  {
+    "type": "hint",
+    "content": "You should show the detail process in each steps of this problem proving"
+  }
+]
+```
+
+The context should be a list of dictionaries in json, where two elements are strictly required, `type` and `content`. You can add more elements in each context if you wish, they will appear in the final log but will not acturally affect the behaviour of the agent pipeline.
+
 ### 4. Re-evaluate Annotated Dataset
 
 If you have a dataset with manual judgements, re-run evaluation to measure model accuracy:

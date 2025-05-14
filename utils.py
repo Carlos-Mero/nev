@@ -182,7 +182,10 @@ def convert_memory_json_to_latex(json_path, latex_path) -> None:
             for key, value in item.items():
                 value = remove_all_tag_content(value)
                 if key == "content":
-                    f.write(f'\\begin{{lemma}}\n{value}\\end{{lemma}}\n\n')
+                    if item['type'] in ['lemma', 'theorem']:
+                        f.write(f'\\begin{{{item['type']}}}\n{value}\\end{{{item['type']}}}\n\n')
+                    else:
+                        f.write(f'\\textbf{{{key}}}: {value}\n')
                 elif key =="proof":
                     f.write(f'\\begin{{proof}}\n{value}\\end{{proof}}\n\n')
                 # TODO! we need more formatting for context elements.
