@@ -215,7 +215,7 @@ class ProofRefiner(AgentBase):
              }
         ]
 
-def format_context_element(e: dict) -> str:
+def format_context_element(e: dict, index: int) -> str:
     """
     This function formats an element in our model's history memory into a markdown string.
     Each element in memory block should be in the following format (expressed as json)
@@ -230,11 +230,11 @@ def format_context_element(e: dict) -> str:
     """
     correctness = f'**correctness**: **{e['correctness']}**' if 'correctness' in e.keys() and e['correctness'] is not None else ''
     return (
-        f'<{e['type']}>\n'
+        f'<{e['type']}-{index}>\n'
         f'**content**: {re.sub(r'<.*?>', '', e['content'])}\n'
         + correctness +
         # f'**comment**: {e['comment']}\n' if e['comment'] is not None else ''
-        f'</{e['type']}>'
+        f'</{e['type']}-{index}>'
     )
 
 class Planner(AgentBase):
@@ -242,7 +242,7 @@ class Planner(AgentBase):
         super().__init__(model)
     def format_prompt(self, problem: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history explorations. They can serve as the background of the conjecture and proof. If you find the target problem is already in the context and marked as explicit true or false, you can directly report $\\boxed{solved}$ in your response. You do not need to propose new conjectures in this case. Remember only the conjectures with **true** correctness can be used as the base of new conjectures. False conjectures are only included for reference.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
+        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history explorations. They can serve as the background of the conjecture and proof. If you find the target problem is already in the context and marked as explicit true or false, you can directly report $\\boxed{solved}$ in your response. You do not need to propose new conjectures in this case. Remember only the conjectures with **true** correctness can be used as the base of new conjectures. False conjectures are only included for reference.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -261,7 +261,7 @@ class SolverWithContext(AgentBase):
         super().__init__(model)
     def format_prompt(self, conjecture: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. You can verify the above conjecture based on them.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
+        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. You can verify the above conjecture based on them.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -281,7 +281,7 @@ class VerifierWithContext(AgentBase):
     def format_prompt(self, conjecture: str, judgement: str, proof: str, context: list[dict]):
         # change the seed each time
         self.seed += 1
-        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
+        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -304,7 +304,7 @@ class RefinerWithContext(AgentBase):
         super().__init__(model)
     def format_prompt(self, conjecture: str, judgement: str, proof: str, verification: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
+        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -331,7 +331,7 @@ class Explorer(AgentBase):
         super().__init__(model)
     def format_prompt(self, problem: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. You can begin your new explorations based on them.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
+        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. You can begin your new explorations based on them.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -355,7 +355,7 @@ class ExpReviewer(AgentBase):
         super().__init__(model)
     def format_prompt(self, conjecture: str, proof: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
+        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -378,7 +378,7 @@ class ExpRefiner(AgentBase):
         super().__init__(model)
     def format_prompt(self, conjecture: str, proof: str, review: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n' + '\n'.join([format_context_element(c) for c in context]) if context else ''
+        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
