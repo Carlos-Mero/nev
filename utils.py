@@ -130,15 +130,15 @@ def convert_memory_json_to_md(json_path, md_path) -> None:
             f.write("### Content:\n\n")
             f.write(f"{remove_all_tag_content(item['content'].strip().replace('##', '####'))}\n\n")
 
-            if item['correctness'] is not None:
+            if 'correctness' in item.keys() and item['correctness'] is not None:
                 f.write("### Correctness:\n\n")
                 f.write(f"{item['correctness']}\n\n")
 
-            if item['proof'] is not None:
+            if 'proof' in item.keys() and item['proof'] is not None:
                 f.write("### Proof:\n\n")
                 f.write(f"{remove_all_tag_content(item['proof'].strip().replace('##', '####'))}\n\n")
 
-            if item['comment'] is not None:
+            if 'comment' in item.keys() and item['comment'] is not None:
                 f.write("### Comment:\n\n")
                 f.write(f"{remove_all_tag_content(item['comment'].strip().replace('##', '####'))}\n\n")
 
