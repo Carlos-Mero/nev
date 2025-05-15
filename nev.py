@@ -2,7 +2,6 @@ import argparse
 import json
 import logging
 
-import concurrent.futures
 from tqdm import tqdm
 
 from utils import convert_json_to_md, view_samples

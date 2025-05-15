@@ -377,7 +377,6 @@ class MathAgentPipeline():
         This function will return if it successfully solved the desired problem or it hits the maximum iteration cycles.
         """
         self.current_steps = 0
-        self.memory = []
         correctness = None
 
         with tqdm(total=self.max_steps, desc="Exploring") as pbar:
