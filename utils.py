@@ -167,8 +167,8 @@ def convert_memory_json_to_latex(json_path, latex_path) -> None:
 % --- Document Starts ---
 \begin{document}
 
-\title{Explore Trajectory of MathAgent}
-\author{MathAgent}
+\title{Explore Trajectory of AIM}
+\author{AI Mathematician}
 \date{\today}
 
 \maketitle
