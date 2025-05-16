@@ -94,7 +94,7 @@ class AgentBase:
                     'temperature': AgentBase.temperature,
                     'timeout': 300000,
                     'messages': prompt,
-                    'max_tokens': AgentBase.max_tokens,
+                    # 'max_tokens': AgentBase.max_tokens,
                     'stream': True
                 }
                 if AgentBase.debug:
@@ -340,7 +340,7 @@ class Explorer(AgentBase):
              '\n'
              f'<problem>{problem}</problem>\n'
              '\n'
-             'However this is a quite difficult problem that can not be directly solved. You need to explore different approaches or directions that might help with our final goal. You can include one or more interesting findings in your explorations as conjectures in your response. Each of these conjectures must include complete definitions and background so that they can be viewed as standalone statements or lemmas. You should wrap them inside two tags of xml style: <conjecture></conjecture>, and each of them should be equiped with a detailed, complete and rigorous proof. The proof should be wrapped in <proof></proof> tags directly followed by the conjecture. More accurately the format should look like:\n'
+             'However this is a quite difficult problem that can not be directly solved. You need to explore different approaches or directions that might help with our final goal. You must include one or more interesting findings in your explorations as conjectures in your response. Each of these conjectures must include complete definitions and background so that they can be viewed as standalone statements or lemmas. You should wrap them inside two tags of xml style: <conjecture></conjecture>, and each of them should be equiped with a detailed, complete and rigorous proof. The proof should be wrapped in <proof></proof> tags directly followed by the conjecture. More accurately the format should look like:\n'
              '\n'
              '<conjecture>Your new findings here</conjecture>\n'
              '<proof>Your proof of the conjecture above</proof>\n'
@@ -401,4 +401,18 @@ class ExpRefiner(AgentBase):
              f'{review}'
              + context_instruct
             }
+        ]
+
+class LatexFormatter(AgentBase):
+    def __init__(self, model: str):
+        super().__init__(model)
+    def format_prompt(self, content: str):
+        return [
+            {'role': 'user', 'content':
+             'Please help me translate all math formulas below into standard LaTeX syntax. You MUST keep the content unchanged to reflect its original meaning. You should not include new latex commands or environments either, and should focus on the translation of the formulas. Please place your translated content inside xml style tags as <latex>Rewriten Contents Here</latex>. Here is the original content:\n'
+             '\n'
+             '<original_content>'
+             + content +
+             '</original_content>'
+             }
         ]

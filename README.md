@@ -132,10 +132,18 @@ If you have a dataset with manual judgements, re-run evaluation to measure model
 python nev.py --reevaluate annotated.json --eval_model deepseek-r1 --save_path reeval.json
 ```
 
-### 5. View Logs in Terminal
+### 5. Other utilities
+
+You can view some samples in the terminal with the following script.
 
 ```bash
 python nev.py --view results.json --start 0 --n_samples 3 [--false_only]
+```
+
+If you are using o4-mini or o3 with MathAgent pipeline, the agent might generate a lot of unicode symbols in its response. You can use the following script to translate them into standard LaTeX syntax if needed. This will create three new files of memories with a prefix `f-` without modifying the original ones to avoid bad behaviour.
+
+```bash
+python nev.py -ft <path_to_logdir>
 ```
 
 ## Contributing

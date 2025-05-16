@@ -163,6 +163,7 @@ def convert_memory_json_to_latex(json_path, latex_path) -> None:
 % --- Page Settings ---
 \geometry{a4paper, margin=1in}
 \newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
 
 % --- Document Starts ---
 \begin{document}
