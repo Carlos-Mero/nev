@@ -331,7 +331,7 @@ class Explorer(AgentBase):
         super().__init__(model)
     def format_prompt(self, problem: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. You can begin your new explorations based on them.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
+        context_instruct = '\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They can be accepted without controversy as correct, and you can begin your exploration based on them.\n\n### Context and History Explorations\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -344,7 +344,7 @@ class Explorer(AgentBase):
              '\n'
              '1. You need to explore different approaches or directions that might help with our final goal.\n'
              '2. You must include one or more interesting findings in your explorations as conjectures in your response.\n'
-             '3. Each of these conjectures must include complete definitions and background so that they can be viewed as standalone statements or lemmas.\n'
+             '3. These conjectures should be innovative and useful, rather than mere repetitions of known results.'
              '4. You should wrap them inside two tags of xml style: <conjecture></conjecture>, and each of them should be equiped with a detailed, complete and rigorous proof.\n'
              '5. You should explicitly write down every intermediate steps in derivations and calculations in the proof.\n'
              '6. The proof should be wrapped in <proof></proof> tags directly followed by the conjecture.\n'
@@ -367,7 +367,7 @@ class ExpReviewer(AgentBase):
         super().__init__(model)
     def format_prompt(self, conjecture: str, proof: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
+        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof and can be accepted without controversy as correct.\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
@@ -397,7 +397,7 @@ class ExpRefiner(AgentBase):
         super().__init__(model)
     def format_prompt(self, conjecture: str, proof: str, review: str, context: list[dict]):
         self.seed += 1
-        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof.\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
+        context_instruct = '\n\n### Context and History Explorations\n\nHere is a list of context that we have collected for this problem or our history findings during exploration. They serve as the background of the conjecture and proof, and can be accepted without controversy as correct.\n\n' + '\n'.join([format_context_element(c, idx) for idx, c in enumerate(context)]) if context else ''
         return [
             {'role': 'user', 'content':
              '### Instruction\n'
