@@ -49,7 +49,8 @@ def run_mathagent(problems, args):
 
 def run(args):
     with open(args.problems, 'r', encoding='utf-8') as problems_file:
-        problems = json.load(problems_file)
+        # we only supports single problem input with pure text format.
+        problems = json.load(problems_file) if args.problems.endswith('.json') else [problems_file.read()]
 
     if args.method == "ma" or args.method == "mas":
         run_mathagent(problems, args)
