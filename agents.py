@@ -92,7 +92,7 @@ class AgentBase:
                 client_params = {
                     'model': self.model,
                     'temperature': AgentBase.temperature,
-                    'timeout': 300000,
+                    'timeout': 300,
                     'messages': prompt,
                     # 'max_tokens': AgentBase.max_tokens,
                     'stream': True
