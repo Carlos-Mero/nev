@@ -326,17 +326,10 @@ class MathAgentPipeline():
         proofs = extract_all_tag_content(raw_exploration, "proof")
         if conjectures is not None and proofs is not None and len(conjectures) == len(proofs):
             for c, p in zip(conjectures, proofs):
+                verification = "Not verified yet"
                 for _ in range(self.refine_iterations):
                     verification = self.pessimistic_eval(c, None, p)
                     if verification is None:
-                        # The conjecture is solved, update memory
-                        self.update_memory(
-                            type='lemma',
-                            content=c,
-                            correctness=True,
-                            proof=p,
-                            comment=None
-                        )
                         break
                     else:
                         nc, np = self.refine_proof_mas(c, p, verification)
@@ -344,6 +337,17 @@ class MathAgentPipeline():
                             c = nc
                         if np is not None:
                             p = np
+                if verification is not None:
+                    verification = self.pessimistic_eval(c, None, p)
+                if verification is None:
+                    # The conjecture is solved, update memory
+                    self.update_memory(
+                        type='lemma',
+                        content=c,
+                        correctness=True,
+                        proof=p,
+                        comment=None
+                    )
 
         # Examine the final proof
         final_proof = extract_tag_content(raw_exploration, "final_proof")
