@@ -343,8 +343,8 @@ class Explorer(AgentBase):
              'However this is a quite difficult problem that can not be directly solved, but you can make your contribution with the following instructions:\n'
              '\n'
              '1. You need to explore different approaches or directions that might help with our final goal.\n'
-             '2. You must include one or more interesting findings in your explorations as conjectures in your response.\n'
-             '3. These conjectures should be innovative and useful, rather than mere repetitions of known results.'
+             '2. You need to include one or more interesting findings in your explorations as conjectures in your response.\n'
+             '3. These conjectures should be innovative and useful, rather than mere repetitions of known results.\n'
              '4. You should wrap them inside two tags of xml style: <conjecture></conjecture>, and each of them should be equiped with a detailed, complete and rigorous proof.\n'
              '5. You should explicitly write down every intermediate steps in derivations and calculations in the proof.\n'
              '6. The proof should be wrapped in <proof></proof> tags directly followed by the conjecture.\n'
@@ -429,7 +429,7 @@ class LatexFormatter(AgentBase):
     def format_prompt(self, content: str):
         return [
             {'role': 'user', 'content':
-             'Please help me translate all math formulas below into standard LaTeX syntax. You MUST keep the content unchanged to reflect its original meaning. You should not include new latex commands or environments either, and should focus on the translation of the formulas. Please place your translated content inside xml style tags as <latex>Rewriten Contents Here</latex>. Here is the original content:\n'
+             'Please help me translate all math formulas below into standard LaTeX syntax. You MUST keep the content unchanged to reflect its original meaning. You should not include new latex commands or environments in your response, and should focus on the translation of the formulas. Please place your translated content inside xml style tags as <latex>Rewriten Contents Here</latex>. Here is the original content:\n'
              '\n'
              '<original_content>'
              + content +
