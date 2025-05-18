@@ -340,7 +340,7 @@ class Explorer(AgentBase):
              '\n'
              f'<problem>{problem}</problem>\n'
              '\n'
-             'However this is a quite difficult problem that can not be directly solved, but you can make your contribution with the following instructions:\n'
+             'This problem could be difficult and can not be directly solved, but you can make your contribution with the following instructions:\n'
              '\n'
              '1. You need to explore different approaches or directions that might help with our final goal.\n'
              '2. You need to include one or more interesting findings in your explorations as conjectures in your response.\n'

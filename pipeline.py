@@ -348,6 +348,9 @@ class MathAgentPipeline():
                         proof=p,
                         comment=None
                     )
+                else:
+                    # When one conjecture is marked false, end the entire exploration for efficiency.
+                    return None
 
         # Examine the final proof
         final_proof = extract_tag_content(raw_exploration, "final_proof")
