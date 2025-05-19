@@ -344,7 +344,7 @@ class Explorer(AgentBase):
              '\n'
              '1. You need to explore different approaches or directions that might help with our final goal.\n'
              '2. You need to include one or more interesting findings in your explorations as conjectures in your response.\n'
-             '3. These conjectures should be innovative and useful, rather than mere repetitions of known results.\n'
+             '3. Do not present any existing lemmas as your new conjectures. You can directly use them in your explorations.\n'
              '4. You should wrap them inside two tags of xml style: <conjecture></conjecture>, and each of them should be equiped with a detailed, complete and rigorous proof.\n'
              '5. You should explicitly write down every intermediate steps in derivations and calculations in the proof.\n'
              '6. The proof should be wrapped in <proof></proof> tags directly followed by the conjecture.\n'
