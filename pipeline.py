@@ -357,19 +357,23 @@ class MathAgentPipeline():
         if final_proof is None:
             return None
         else:
-            verification = self.pessimistic_eval(problem, None, final_proof)
-            if verification is None:
-                # The conjecture is solved, update memory
-                self.update_memory(
-                    type='theorem',
-                    content=problem,
-                    correctness=True,
-                    proof=final_proof,
-                    comment=None
-                )
-                return True
-            else:
-                return None
+            for _ in range(self.refine_iterations):
+                verification = self.pessimistic_eval(problem, None, final_proof)
+                if verification is None:
+                    # The conjecture is solved, update memory
+                    self.update_memory(
+                        type='theorem',
+                        content=problem,
+                        correctness=True,
+                        proof=final_proof,
+                        comment=None
+                    )
+                    return True
+                else:
+                    _, np = self.refine_proof_mas(problem, final_proof, verification)
+                    if np is not None:
+                        final_proof = np
+            return None
 
         return None
 
