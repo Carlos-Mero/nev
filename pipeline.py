@@ -139,7 +139,7 @@ class MathAgentPipeline():
                  refine_iterations: int = 2,
                  parallel_solve_iterations: int = 1,
                  log_dir: str = "samples",
-                 log_per_steps: int = 10,
+                 # log_per_steps: int = 10,
                  ):
         self.method = method
         self.proof_model = proof_model
@@ -151,7 +151,7 @@ class MathAgentPipeline():
         self.refine_iterations = refine_iterations
         self.parallel_solve_iterations = parallel_solve_iterations
         self.log_dir = log_dir
-        self.log_per_steps = log_per_steps
+        # self.log_per_steps = log_per_steps
 
         self.memory = []
         if self.method == 'ma':
@@ -247,6 +247,7 @@ class MathAgentPipeline():
             'proof': proof,
             'comment': comment
         })
+        self.save_logs(content, None)
 
     def explore_iteration(self, problem: str) -> Optional[bool]:
         """
@@ -427,8 +428,8 @@ class MathAgentPipeline():
 
         with tqdm(total=self.max_steps, desc="Exploring") as pbar:
             while (correctness is None and self.current_steps < self.max_steps):
-                if self.current_steps % self.log_per_steps == 1:
-                    self.save_logs(problem, correctness)
+                # if self.current_steps % self.log_per_steps == 1:
+                #     self.save_logs(problem, correctness)
 
                 self.current_steps += 1
                 if self.method == "ma":

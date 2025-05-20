@@ -30,7 +30,7 @@ def run_mathagent(problems, args):
         refine_iterations=args.iterations,
         parallel_solve_iterations=args.solver_parallel,
         log_dir=args.log_dir,
-        log_per_steps=args.log_per_steps,
+        # log_per_steps=args.log_per_steps,
     )
 
     if args.context is not None:
@@ -154,7 +154,7 @@ def main():
     parser.add_argument('--steps', type=int, default=6, help="The maximum explore iterations of our math agent")
     parser.add_argument('--solver_parallel', type=int, default=1, help="The maximum parallel solve process for a single conjecture")
     parser.add_argument('--log_dir', type=str, default="samples", help="The target log directory for math agent")
-    parser.add_argument('--log_per_steps', type=int, default=10, help="Save logs in MathAgent after these steps")
+    # parser.add_argument('--log_per_steps', type=int, default=10, help="Save logs in MathAgent after these steps")
     parser.add_argument('-c', '--context', type=str, default=None, help="path to the json file containing the context of your problem.")
     parser.add_argument('--resume', type=str, default=None, help="Resume from existing exploration memory. Pass the previous log_dir to continue exploring.")
 
